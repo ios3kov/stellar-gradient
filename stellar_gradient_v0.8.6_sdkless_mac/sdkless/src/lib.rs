@@ -83,7 +83,7 @@ unsafe extern "C" {
 #[repr(i32)]
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 enum Params {
-    Palette = 1, Color1 = 2, Color2 = 3, Color3 = 4, Color4 = 5, Color5 = 6,
+    Colors = 1, Color1 = 2, Color2 = 3, Color3 = 4, Color4 = 5, Color5 = 6,
     Angle = 7, Cycles = 8, Offset = 9, Phase = 10, Saturation = 11, Brightness = 12,
     DepthTopic = 13, Contrast = 14, Bulge = 15, Rounding = 16, DepthEnd = 17,
     TurbTopic = 18, TurbAmount = 19, TurbSizeX = 20, TurbSizeY = 21, TurbEvolution = 22, TurbSoftness = 23, TurbEnd = 24,
@@ -91,6 +91,7 @@ enum Params {
     GrainTopic = 33, GrainAmount = 34, GrainSize = 35, GrainColor = 36, GrainAnimate = 37, GrainEnd = 38,
     DiffTopic = 39, DiffBlur = 40, DiffCenterX = 41, DiffCenterY = 42, DiffFocus = 43, DiffFeather = 44, DiffInvert = 45, DiffEnd = 46,
     LookEnd = 47, Engine = 48, Quality = 49,
+    PaletteTopic = 50, PaletteEnd = 51,
 }
 
 #[derive(Default)]
@@ -114,34 +115,66 @@ fn rect_from_raw(r: ae::sys::PF_LRect) -> RectC { RectC { left: r.left, top: r.t
 fn rect_to_raw(r: RectC) -> ae::sys::PF_LRect { ae::sys::PF_LRect { left: r.left, top: r.top, right: r.right, bottom: r.bottom } }
 fn rect_to_ae(r: RectC) -> ae::Rect { ae::Rect { left: r.left, top: r.top, right: r.right, bottom: r.bottom } }
 
-fn apply_palette(which: i32, p: &mut ParamsC) {
-    const PRESETS: [[[f32;3];5];10] = [
-        [[1.00,0.13,0.24],[1.00,0.42,0.10],[1.00,0.89,0.16],[0.24,0.95,0.74],[0.14,0.37,1.00]],
-        [[0.07,0.15,0.08],[0.18,0.38,0.17],[0.42,0.62,0.20],[0.78,0.79,0.36],[0.93,0.88,0.65]],
-        [[0.19,0.08,0.15],[0.46,0.18,0.31],[0.73,0.35,0.48],[0.92,0.57,0.62],[1.00,0.80,0.73]],
-        [[0.015,0.012,0.04],[0.07,0.04,0.16],[0.18,0.07,0.31],[0.36,0.12,0.51],[0.68,0.25,0.76]],
-        [[0.02,0.11,0.24],[0.00,0.46,0.82],[0.00,0.92,0.93],[0.52,1.00,0.46],[1.00,0.91,0.09]],
-        [[0.05,0.01,0.14],[0.28,0.03,0.53],[0.63,0.06,0.89],[0.96,0.20,0.78],[0.36,0.69,1.00]],
-        [[0.00,0.16,0.24],[0.00,0.47,0.61],[0.00,0.78,0.77],[0.37,0.96,0.78],[0.80,1.00,0.92]],
-        [[0.22,0.04,0.01],[0.59,0.13,0.02],[0.92,0.36,0.04],[1.00,0.66,0.12],[1.00,0.91,0.48]],
-        [[1.00,0.10,0.27],[1.00,0.53,0.10],[0.98,0.92,0.12],[0.10,0.83,0.55],[0.08,0.43,1.00]],
-        [[0.42,0.18,0.95],[0.82,0.30,1.00],[1.00,0.43,0.73],[1.00,0.66,0.44],[0.45,0.91,1.00]],
+fn palette_colors(which: i32) -> Option<[[u8; 3]; 5]> {
+    const PRESETS: [[[u8; 3]; 5]; 15] = [
+        [[255,33,61],[255,107,26],[255,227,41],[61,242,189],[36,94,255]],
+        [[18,38,20],[46,97,43],[107,158,51],[199,201,92],[237,224,166]],
+        [[48,20,38],[117,46,79],[186,89,122],[235,145,158],[255,204,186]],
+        [[4,3,10],[18,10,41],[46,18,79],[92,31,130],[173,64,194]],
+        [[5,28,61],[0,117,209],[0,235,237],[133,255,117],[255,232,23]],
+        [[13,3,36],[71,8,135],[161,15,227],[245,51,199],[92,176,255]],
+        [[0,41,61],[0,120,156],[0,199,196],[94,245,199],[204,255,235]],
+        [[56,10,3],[150,33,5],[235,92,10],[255,168,31],[255,232,122]],
+        [[255,26,69],[255,135,26],[250,235,31],[26,212,140],[20,110,255]],
+        [[107,46,242],[209,77,255],[255,110,186],[255,168,112],[115,232,255]],
+        [[8,35,43],[0,115,119],[50,214,184],[122,82,255],[255,75,180]],
+        [[42,4,2],[110,14,5],[205,46,10],[255,111,20],[255,204,92]],
+        [[67,31,52],[143,71,92],[244,135,119],[255,199,160],[190,235,255]],
+        [[5,8,30],[28,20,77],[80,41,130],[182,58,155],[255,115,165]],
+        [[14,36,8],[61,112,10],[139,207,16],[218,255,53],[45,255,190]],
     ];
-    if (2..=11).contains(&which) {
-        for (dst, c) in p.colors.iter_mut().zip(PRESETS[(which - 2) as usize].iter()) {
-            *dst = Color3 { r: c[0], g: c[1], b: c[2] };
-        }
+    if (2..=16).contains(&which) {
+        Some(PRESETS[(which - 2) as usize])
+    } else {
+        None
     }
+}
+
+fn apply_palette_to_color_params(params: &mut ae::Parameters<Params>, which: i32) -> Result<(), ae::Error> {
+    let Some(colors) = palette_colors(which) else { return Ok(()); };
+    for (key, rgb) in [Params::Color1, Params::Color2, Params::Color3, Params::Color4, Params::Color5]
+        .into_iter()
+        .zip(colors.into_iter())
+    {
+        let mut def = params.get_mut(key)?;
+        {
+            let mut color = def.as_color_mut()?;
+            color.set_value(ae::Pixel8 { alpha: 255, red: rgb[0], green: rgb[1], blue: rgb[2] });
+        }
+        def.set_value_changed();
+    }
+    Ok(())
+}
+
+fn set_colors_menu_custom(params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
+    let mut def = params.get_mut(Params::Colors)?;
+    let is_custom = def.as_popup()?.value() == 1;
+    if !is_custom {
+        {
+            let mut popup = def.as_popup_mut()?;
+            popup.set_value(1);
+        }
+        def.set_value_changed();
+    }
+    Ok(())
 }
 
 fn gather_params(params: &mut ae::Parameters<Params>) -> Result<(ParamsC,i32), ae::Error> {
     let mut p=ParamsC::default();
-    let palette=params.get(Params::Palette)?.as_popup()?.value();
     for (i,key) in [Params::Color1,Params::Color2,Params::Color3,Params::Color4,Params::Color5].into_iter().enumerate() {
         let c=params.get(key)?.as_color()?.float_value()?;
         p.colors[i]=Color3{r:c.red,g:c.green,b:c.blue};
     }
-    apply_palette(palette,&mut p);
     macro_rules! f { ($field:ident,$key:expr) => { p.$field=params.get($key)?.as_float_slider()?.value() as f32; }; }
     f!(angle_deg,Params::Angle); f!(cycles,Params::Cycles); f!(offset,Params::Offset); f!(phase_deg,Params::Phase); f!(saturation,Params::Saturation); f!(brightness,Params::Brightness);
     f!(depth_contrast,Params::Contrast); f!(bulge,Params::Bulge); f!(rounding,Params::Rounding);
@@ -159,6 +192,14 @@ fn add_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def:
     if id != key as i32 { return Err(ae::Error::InvalidParms); }
     params.add_customized(key,name,def,move |pd| { pd.set_id(key as i32); -1 })
 }
+fn add_supervised_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def: impl Into<ae::Param<'a>>, id: i32) -> Result<(), ae::Error> {
+    if id != key as i32 { return Err(ae::Error::InvalidParms); }
+    params.add_customized(key,name,def,move |pd| {
+        pd.set_id(key as i32);
+        pd.set_flag(ae::ParamFlag::SUPERVISE,true);
+        -1
+    })
+}
 fn add_group(params: &mut ae::Parameters<Params>, key: Params, name: &str, id: i32, start: bool, collapsed: bool) -> Result<(), ae::Error> {
     if id != key as i32 { return Err(ae::Error::InvalidParms); }
     params.add_customized(key,name,ae::NullDef::new(),move |pd| {
@@ -174,11 +215,13 @@ impl AdobePluginGlobal for Plugin {
         macro_rules! slider { ($key:expr,$name:expr,$vmin:expr,$vmax:expr,$smin:expr,$smax:expr,$d:expr,$prec:expr,$id:expr) => {{
             add_id(params,$key,$name,ae::FloatSliderDef::setup(|x|{x.set_valid_min($vmin);x.set_valid_max($vmax);x.set_slider_min($smin);x.set_slider_max($smax);x.set_default($d);x.set_precision($prec);x.set_value(x.default());}),$id)?;
         }}; }
-        add_id(params,Params::Palette,"Palette",ae::PopupDef::setup(|x|{x.set_options(&["Custom","Hot Neon","Moss","Rose Dust","Void","Voltage","UV Bloom","Aqua","Golden Hour","Spectrum","Sugar"]);x.set_default(1);x.set_value(1);}),1)?;
+        add_group(params,Params::PaletteTopic,"Palette",50,true,false)?;
+        add_supervised_id(params,Params::Colors,"Colors",ae::PopupDef::setup(|x|{x.set_options(&["Custom","Hot Neon","Moss","Rose Dust","Void","Voltage","UV Bloom","Aqua","Golden Hour","Spectrum","Sugar","Aurora","Ember","Peach Ice","Night Bloom","Acid Lime"]);x.set_default(1);x.set_value(1);}),1)?;
         for (key,name,rgba,id) in [
             (Params::Color1,"Color 1",[31,13,87,255],2),(Params::Color2,"Color 2",[31,97,242,255],3),(Params::Color3,"Color 3",[170,43,242,255],4),
             (Params::Color4,"Color 4",[255,79,140,255],5),(Params::Color5,"Color 5",[255,191,46,255],6)
-        ] { add_id(params,key,name,ae::ColorDef::setup(|x|{let c=ae::Pixel8{red:rgba[0],green:rgba[1],blue:rgba[2],alpha:rgba[3]};x.set_default(c);x.set_value(c);}),id)?; }
+        ] { add_supervised_id(params,key,name,ae::ColorDef::setup(|x|{let c=ae::Pixel8{red:rgba[0],green:rgba[1],blue:rgba[2],alpha:rgba[3]};x.set_default(c);x.set_value(c);}),id)?; }
+        add_group(params,Params::PaletteEnd,"",51,false,false)?;
         slider!(Params::Angle,"Angle",-720.0,720.0,-180.0,180.0,90.0,1,7); slider!(Params::Cycles,"Cycles",0.1,20.0,0.1,5.0,1.0,2,8);
         slider!(Params::Offset,"Offset",-100.0,100.0,-2.0,2.0,0.0,2,9); slider!(Params::Phase,"Phase",-100000.0,100000.0,0.0,360.0,0.0,1,10);
         slider!(Params::Saturation,"Saturation",0.0,2.0,0.0,2.0,1.0,2,11); slider!(Params::Brightness,"Brightness",0.0,4.0,0.0,2.0,1.0,2,12);
@@ -194,7 +237,21 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.8.5\rSDK-less AE host + Metal + CPU SmartFX"),
+            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.8.7\rCurated palette presets + Metal + CPU SmartFX"),
+            ae::Command::UserChangedParam { param_index } => {
+                match params.type_at(param_index) {
+                    Params::Colors => {
+                        let which=params.get(Params::Colors)?.as_popup()?.value();
+                        apply_palette_to_color_params(params,which)?;
+                        out_data.set_out_flag(ae::OutFlags::RefreshUi,true);
+                    }
+                    Params::Color1 | Params::Color2 | Params::Color3 | Params::Color4 | Params::Color5 => {
+                        set_colors_menu_custom(params)?;
+                        out_data.set_out_flag(ae::OutFlags::RefreshUi,true);
+                    }
+                    _ => {}
+                }
+            }
             ae::Command::QueryDynamicFlags => {
                 let animate=params.get(Params::GrainAnimate)?.as_checkbox()?.value();
                 let amount=params.get(Params::GrainAmount)?.as_float_slider()?.value();

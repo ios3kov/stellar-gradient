@@ -3,6 +3,15 @@ name: Mac CI
 on:
   push:
     branches: [main]
+    paths:
+      - ".github/workflows/mac-ci.yml"
+      - "stellar_gradient_v0.8.6_sdkless_mac/CMakeLists.txt"
+      - "stellar_gradient_v0.8.6_sdkless_mac/FIRST_MAC_BUILD.command"
+      - "stellar_gradient_v0.8.6_sdkless_mac/src/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/sdkless/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/tests/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/tools/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/docs/SOURCE_FREEZE_V08_SHA256.txt"
   workflow_dispatch:
 
 concurrency:

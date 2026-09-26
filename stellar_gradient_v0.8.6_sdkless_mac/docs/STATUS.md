@@ -136,3 +136,14 @@ User installed the CI-built ARM64 `StellarGradient.plugin` on the target Apple S
 Plan item 6: **PROVISIONAL PASS — plugin loads and renders in AE**.
 
 Before marking item 6 fully complete, the remaining manual quality checks are: key parameter response, GPU/CPU engine switching, 8/16/32-bpc/HDR behavior, and basic scrub/render stability. No production-speed claim yet.
+
+
+### Palette presets — v0.8.7 build 15
+
+- Reworked the top color UX to match Cosmic's documented structure: `Palette` group, `Colors` preset menu, then five editable color controls.
+- Selecting a curated preset writes the preset into Color 1..5, so the user sees and can edit the actual colors.
+- Manually editing any of Color 1..5 automatically returns the `Colors` menu to `Custom`.
+- Added 15 curated palettes plus Custom.
+- Existing persistent parameter IDs 1..49 remain unchanged; new UI-only Palette group markers use IDs 50 and 51.
+- Render core and Metal shader math are unchanged.
+- CI push filtering now avoids full rebuilds for ordinary docs-only commits.

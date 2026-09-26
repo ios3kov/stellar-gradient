@@ -86,7 +86,7 @@ fn main() {
         Property::CodeMacARM64("EffectMain"),
         Property::AE_PiPL_Version { major: 2, minor: 0 },
         Property::AE_Effect_Spec_Version { major: PF_PLUG_IN_VERSION, minor: PF_PLUG_IN_SUBVERS },
-        Property::AE_Effect_Version { version: 0, subversion: 8, bugversion: 6, stage: Stage::Beta, build: 14 },
+        Property::AE_Effect_Version { version: 0, subversion: 8, bugversion: 7, stage: Stage::Beta, build: 15 },
         Property::AE_Effect_Info_Flags(0),
         Property::AE_Effect_Global_OutFlags(
             OutFlags::DeepColorAware | OutFlags::NonParamVary
