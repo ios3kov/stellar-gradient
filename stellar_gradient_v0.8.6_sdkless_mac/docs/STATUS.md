@@ -1,0 +1,70 @@
+# Status — v0.8 SDK-less Mac candidate
+
+Date: 2026-09-26
+
+## Plan status
+
+1. **SDK-less layer audit — COMPLETE**
+   - Found release panic-boundary risk and GPU-data ownership risk.
+   - FFI layout and parameter-ID contracts reviewed.
+   - See `SDKLESS_AUDIT_V08.md`.
+
+2. **Fixes — COMPLETE**
+   - Release panic catching enabled.
+   - GPU context changed to single-owner setup/setdown lifetime with immutable concurrent render access.
+   - C++/Rust ABI size/alignment/offset guards added.
+   - Public parameter IDs pinned 1..49 on `#[repr(i32)] Params`.
+   - Rust quality gates added before packaging.
+   - See `SDKLESS_FIXES_V08.md`.
+
+3. **Final code-side regression — COMPLETE**
+   - Core strict: 7/7 PASS.
+   - Core ASan/UBSan: 7/7 PASS.
+   - Core TSan: 7/7 PASS.
+   - Bridge parity: `max_err=0`.
+   - Bridge HDR/8/16/32 checks: PASS.
+   - Bridge MFR: `max_err=0`, failures=0.
+   - Bridge ASan/UBSan + TSan: PASS.
+   - Mac-only Rust compiler gates are embedded into `FIRST_MAC_BUILD.command` and execute before packaging.
+   - See `REGRESSION_V08.md`.
+
+4. **v0.8 source freeze — COMPLETE**
+   - Host/bridge version: v0.8.6 build 14 (MFR/cfg compiler hotfix; render core unchanged).
+   - Render core remains frozen v0.6 and unchanged.
+   - 49 source/build inputs frozen by SHA-256.
+   - `python3 tools/verify_v08_host_freeze.py` => PASS.
+   - See `SOURCE_FREEZE_V08.md`.
+
+5. **Native Mac `.plugin` build — RETRY READY / CURRENT GATE**
+   - First v0.8 Mac run on 2026-09-26 stopped before compilation: Homebrew `cargo/rustc 1.80.1` existed, but `rustup` did not; the script incorrectly called `rustup` unconditionally.
+   - Root cause: Rust 1.80.1 is also too old for the host's Rust 2024 edition (minimum 1.85).
+   - Fixed in v0.8.1 build 9: modern complete Rust is used directly; old/incomplete Rust triggers automatic user-local stable rustup bootstrap.
+   - Second Mac run reached sanitizer smoke and stopped because macOS ASan rejects `detect_leaks=1`; this was a preflight-script portability defect, not a plugin/core failure.
+   - Fixed in v0.8.2 build 10: macOS sanitizer smoke uses `detect_leaks=0` with ASan/UBSan halt-on-error enabled.
+   - Adobe SDK is not required.
+   - Third Mac run reached the Rust host gate after contracts, bridge parity and sanitizer smoke passed. It exposed invalid Rust leading-dot floats (`.13`, `.01`, etc.) and rustfmt style drift.
+   - Fixed in v0.8.3 build 11: all literals use `0.xx`, a static syntax contract prevents recurrence, and rustfmt/check/test/clippy run on an ephemeral build copy so the frozen source bytes are not modified.
+   - Retry the v0.8.6 `FIRST_MAC_BUILD.command` on the Apple Silicon test Mac.
+   - It performs Rust fmt/check/test/clippy, native bridge checks, Release arm64 build, bundle/codesign validation, install, diagnostics and AE launch.
+
+6. **AE functional/quality test — BLOCKED BY 5**
+7. **Metal profiling — BLOCKED BY 6**
+8. **Profiler-driven optimization — BLOCKED BY 7**
+9. **Cosmic vs Stellar controlled benchmark — BLOCKED BY 8**
+10. **Final user test `.plugin` — BLOCKED BY 9**
+
+## Release rule
+
+Do not claim production readiness or speed superiority over Cosmic until points 5–9 have passed on the same Mac/After Effects environment.
+
+
+### v0.8.5 Mac compile hotfix
+
+The fourth real Mac run reached Objective-C++ Metal compilation and exposed Xcode's macOS 15+ deprecation of `MTLCompileOptions.fastMathEnabled`. The SDK-less bridge now uses safe/precise modern Metal compile options with a guarded legacy fallback. Render core and shader math are unchanged.
+
+
+## macOS build retry — v0.8.6 build 14
+
+The v0.8.4 run reached native Rust host compilation. Metal compiled past the precise-math gate, but Rust 1.98 exposed that `threaded_rendering` was not active in the destination crate even though the PiPL advertised MFR. The `after-effects` macro therefore generated a mutable `handle_command(&mut self, ...)` trait while the MFR-safe host implemented `&self`.
+
+v0.8.5 registers all macro cfg names explicitly and pins `threaded_rendering`, `smart_render`, and `gpu_render` in this crate's build script. This keeps the Rust host trait and the advertised PiPL capabilities in one deterministic contract. Two `unused_mut` warnings are also removed so the later `clippy -D warnings` gate remains strict. Frozen C++ render core and Metal shader math are unchanged.
