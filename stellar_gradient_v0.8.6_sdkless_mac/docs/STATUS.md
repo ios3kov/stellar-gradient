@@ -68,3 +68,12 @@ The fourth real Mac run reached Objective-C++ Metal compilation and exposed Xcod
 The v0.8.4 run reached native Rust host compilation. Metal compiled past the precise-math gate, but Rust 1.98 exposed that `threaded_rendering` was not active in the destination crate even though the PiPL advertised MFR. The `after-effects` macro therefore generated a mutable `handle_command(&mut self, ...)` trait while the MFR-safe host implemented `&self`.
 
 v0.8.5 registers all macro cfg names explicitly and pins `threaded_rendering`, `smart_render`, and `gpu_render` in this crate's build script. This keeps the Rust host trait and the advertised PiPL capabilities in one deterministic contract. Two `unused_mut` warnings are also removed so the later `clippy -D warnings` gate remains strict. Frozen C++ render core and Metal shader math are unchanged.
+
+
+### GitHub CI migration — 2026-09-27
+
+- Full v0.8.6 source tree is now in `ios3kov/stellar-gradient` under `stellar_gradient_v0.8.6_sdkless_mac/`.
+- The first three GitHub Actions runs used the earlier temporary minimal archive; native C++/Metal passed, but Rust still failed with E0053 because crates.io `after-effects 0.4.0` generated the non-MFR `&mut self` trait.
+- Upstream inspection confirmed current MFR examples use `&self`. The SDK-less host now pins both `after-effects` and `pipl` to exact upstream revision `83dcc93734fd5db1335b6ec83cba7a6505a39dcc` so the macro/API implementation is deterministic.
+- Frozen render core and Metal shader math are unchanged.
+- CI now runs independent contracts, core strict/ASan/TSan, native bridge/Metal, Rust quality, and ARM64 bundle jobs in parallel.

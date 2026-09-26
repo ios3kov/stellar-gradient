@@ -9,10 +9,10 @@ build = "build.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-after-effects = "0.4.0"
+after-effects = { git = "https://github.com/virtualritz/after-effects", rev = "83dcc93734fd5db1335b6ec83cba7a6505a39dcc", package = "after-effects" }
 
 [build-dependencies]
-pipl = "0.1.1"
+pipl = { git = "https://github.com/virtualritz/after-effects", rev = "83dcc93734fd5db1335b6ec83cba7a6505a39dcc", package = "pipl" }
 cc = "1.2"
 
 [profile.release]

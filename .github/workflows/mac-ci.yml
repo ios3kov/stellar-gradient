@@ -10,117 +10,147 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUSTFLAGS: "--cfg threaded_rendering --cfg smart_render --cfg gpu_render --cfg catch_panics"
-  SOURCE_SHA256: "8fdadcac9e1bf531de40d59b7b51e095f0c3bdcc9eb3f6396f9099a2cc163413"
+  SRC: stellar_gradient_v0.8.6_sdkless_mac
 
 jobs:
-  rust-quality:
-    name: Rust quality
+  contracts:
+    name: Static contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify frozen contracts
+        working-directory: ${{ env.SRC }}
+        run: |
+          python3 tools/verify_metadata.py
+          python3 tools/verify_code_freeze.py
+          python3 tools/verify_metal_perf.py
+          python3 tools/verify_ae_contract.py
+          python3 tools/verify_sdkless_host.py
+          python3 tools/verify_v08_host_freeze.py
+
+  core-regression:
+    name: Core ${{ matrix.mode }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [strict, asan-ubsan, tsan]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure + test
+        working-directory: ${{ env.SRC }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.mode }}" in
+            strict)
+              cmake -S . -B build-ci -DCMAKE_BUILD_TYPE=Release -DSTELLAR_WARNINGS_AS_ERRORS=ON
+              cmake --build build-ci -j 3
+              ctest --test-dir build-ci --output-on-failure
+              ;;
+            asan-ubsan)
+              cmake -S . -B build-ci -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTELLAR_SANITIZE=ON
+              cmake --build build-ci -j 3
+              ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ctest --test-dir build-ci --output-on-failure
+              ;;
+            tsan)
+              cmake -S . -B build-ci -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTELLAR_TSAN=ON
+              cmake --build build-ci -j 3
+              TSAN_OPTIONS=halt_on_error=1 ctest --test-dir build-ci --output-on-failure
+              ;;
+          esac
+
+  native-mac:
+    name: Native bridge + Metal
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - name: Strict bridge regression
+        working-directory: ${{ env.SRC }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-native
+          CXX=(xcrun clang++ -std=c++17 -O3 -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off)
+          COMMON=(sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp)
+          for test in bridge_parity_test bridge_formats_test bridge_mfr_test; do
+            "${CXX[@]}" "sdkless/bridge/${test}.cpp" "${COMMON[@]}" -pthread -o ".ci-native/${test}"
+            ".ci-native/${test}"
+          done
+          "${CXX[@]}" -c sdkless/bridge/MetalBridge.mm -o .ci-native/MetalBridge.o
+      - name: ASan + UBSan bridge smoke
+        working-directory: ${{ env.SRC }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer             sdkless/bridge/bridge_parity_test.cpp sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp             -pthread -o .ci-native/bridge_asan
+          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 .ci-native/bridge_asan
+
+  rust-quality:
+    name: Rust host quality
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - name: Restore minimal source
-        run: |
-          python3 - <<'PY'
-          import base64, hashlib, pathlib, lzma, tarfile, os
-          root=pathlib.Path('.')
-          s=(root/'ci/minimal.partA.b64').read_text().strip()+(root/'ci/minimal.partB.b64').read_text().strip()
-          data=base64.b64decode(s)
-          got=hashlib.sha256(data).hexdigest()
-          want=os.environ["SOURCE_SHA256"]
-          assert got==want, (got,want)
-          p=pathlib.Path('/tmp/stellar_ci_src.tar.xz'); p.write_bytes(data)
-          pathlib.Path('work').mkdir(exist_ok=True)
-          with tarfile.open(p,'r:xz') as t: t.extractall('work')
-          print('source sha256',got)
-          PY
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-quality-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.toml', env.SRC)) }}
       - name: fmt + check + test + clippy
-        working-directory: work/sdkless
+        working-directory: ${{ env.SRC }}/sdkless
         run: |
-          cargo fmt --all
+          set -euo pipefail
           cargo fmt --all -- --check
           cargo check --release
           cargo test --release
           cargo clippy --release -- -D warnings
 
-  native:
-    name: Native C++ / Metal
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore minimal source
-        run: |
-          python3 - <<'PY'
-          import base64, hashlib, pathlib, tarfile, os
-          s=pathlib.Path('ci/minimal.partA.b64').read_text().strip()+pathlib.Path('ci/minimal.partB.b64').read_text().strip()
-          data=base64.b64decode(s)
-          assert hashlib.sha256(data).hexdigest()==os.environ["SOURCE_SHA256"]
-          p=pathlib.Path('/tmp/stellar_ci_src.tar.xz'); p.write_bytes(data)
-          pathlib.Path('work').mkdir(exist_ok=True)
-          with tarfile.open(p,'r:xz') as t: t.extractall('work')
-          PY
-      - name: Strict native compile
-        working-directory: work
-        run: |
-          mkdir -p obj
-          CXX="xcrun clang++ -std=c++17 -O3 -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off"
-          $CXX -c src/core/RenderPlan.cpp -o obj/RenderPlan.o
-          $CXX -c src/cpu/ReferenceRenderer.cpp -o obj/ReferenceRenderer.o
-          $CXX -c sdkless/bridge/StellarBridge.cpp -o obj/StellarBridge.o
-          $CXX -c sdkless/bridge/MetalBridge.mm -o obj/MetalBridge.o
-          cat > /tmp/abi.cpp <<'CPP'
-          #include "sdkless/bridge/StellarBridge.h"
-          int main(){ return sizeof(SGParamsC)==180 && sizeof(SGRenderStateC)==264 ? 0 : 1; }
-          CPP
-          $CXX -I. /tmp/abi.cpp -o obj/abi
-          ./obj/abi
-
   release-bundle:
     name: ARM64 plugin bundle
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
-          components: rustfmt
-      - name: Restore minimal source
-        run: |
-          python3 - <<'PY'
-          import base64, hashlib, pathlib, tarfile, os
-          s=pathlib.Path('ci/minimal.partA.b64').read_text().strip()+pathlib.Path('ci/minimal.partB.b64').read_text().strip()
-          data=base64.b64decode(s)
-          assert hashlib.sha256(data).hexdigest()==os.environ["SOURCE_SHA256"]
-          p=pathlib.Path('/tmp/stellar_ci_src.tar.xz'); p.write_bytes(data)
-          pathlib.Path('work').mkdir(exist_ok=True)
-          with tarfile.open(p,'r:xz') as t: t.extractall('work')
-          PY
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.toml', env.SRC)) }}
       - name: Build ARM64 host
-        working-directory: work/sdkless
+        working-directory: ${{ env.SRC }}/sdkless
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
-          cargo fmt --all
+          set -euo pipefail
           cargo build --release --target aarch64-apple-darwin
-      - name: Bundle and sign
+      - name: Bundle + ad-hoc sign
+        shell: bash
         run: |
+          set -euo pipefail
           TRIPLE=aarch64-apple-darwin
           BIN="target/$TRIPLE/release/libstellar_gradient_host.dylib"
           RSRC="target/$TRIPLE/release/stellar_gradient_host.rsrc"
           PKG="target/$TRIPLE/release/stellar_gradient_host_PkgInfo"
           PLIST="target/$TRIPLE/release/stellar_gradient_host_Info.plist"
           for f in "$BIN" "$RSRC" "$PKG" "$PLIST"; do test -f "$f" || { echo "missing $f"; exit 3; }; done
+
           BUNDLE="dist/StellarGradient.plugin"
           mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
           cp "$BIN" "$BUNDLE/Contents/MacOS/StellarGradient"
           cp "$RSRC" "$BUNDLE/Contents/Resources/StellarGradient.rsrc"
           cp "$PKG" "$BUNDLE/Contents/PkgInfo"
           cp "$PLIST" "$BUNDLE/Contents/Info.plist"
+
           /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleExecutable string StellarGradient' "$BUNDLE/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist"
+
           codesign --force --deep --sign - "$BUNDLE"
           codesign --verify --deep --strict "$BUNDLE"
           file "$BUNDLE/Contents/MacOS/StellarGradient"
