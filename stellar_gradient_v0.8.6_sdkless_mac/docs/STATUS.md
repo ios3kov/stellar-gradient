@@ -172,3 +172,18 @@ UI/host corrections based on observable Cosmic behavior:
 - Host maps Depth percentages to the existing clean-room core as normalized values (Contrast/Bulge/Rounding divided by 100).
 - Depth group is open by default.
 - Frozen C++ render core and Metal shader math are unchanged.
+
+
+### GitHub Mac CI run #12 — ALL GREEN
+
+Commit: `1fa06bfc2f45b677ba3006f7c5f3f658dd43ec73`
+
+- Static contracts: PASS.
+- Core strict: PASS.
+- Core ASan/UBSan: PASS.
+- Core TSan: PASS.
+- Native bridge + Metal: PASS.
+- Rust host quality: PASS.
+- ARM64 plugin bundle/sign/upload: PASS.
+
+The v0.8.8 UI corrections are ready for manual After Effects verification.
