@@ -128,7 +128,9 @@ fn apply_palette(which: i32, p: &mut ParamsC) {
         [[0.42,0.18,0.95],[0.82,0.30,1.00],[1.00,0.43,0.73],[1.00,0.66,0.44],[0.45,0.91,1.00]],
     ];
     if (2..=11).contains(&which) {
-        for i in 0..5 { let c=PRESETS[(which-2) as usize][i]; p.colors[i]=Color3{r:c[0],g:c[1],b:c[2]}; }
+        for (dst, c) in p.colors.iter_mut().zip(PRESETS[(which - 2) as usize].iter()) {
+            *dst = Color3 { r: c[0], g: c[1], b: c[2] };
+        }
     }
 }
 

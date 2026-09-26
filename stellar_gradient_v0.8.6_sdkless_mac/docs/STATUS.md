@@ -102,3 +102,13 @@ v0.8.5 registers all macro cfg names explicitly and pins `threaded_rendering`, `
 
 Plan item 5: **COMPLETE — real ARM64 .plugin built in CI**.
 Plan item 6: **NEXT — After Effects functional/quality validation** after the all-green CI confirmation.
+
+
+### Rust quality cleanup — 2026-09-27
+
+- GitHub Mac CI run #6: 6/7 jobs passed, including repeated ARM64 plugin build/bundle/sign/upload.
+- Rust `cargo check --release` and the FFI layout unit test passed against the pinned upstream dependency.
+- The only remaining failure was Clippy `needless_range_loop` in the palette-copy loop.
+- The loop now uses `iter_mut().zip(...iter())`; output values and render behavior are unchanged.
+- Strict `clippy -D warnings` remains enabled; no lint suppression was added.
+- SHA-freeze updated only for `sdkless/src/lib.rs`.
