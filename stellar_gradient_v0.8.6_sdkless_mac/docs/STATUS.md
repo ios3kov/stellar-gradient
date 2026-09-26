@@ -112,3 +112,18 @@ Plan item 6: **NEXT — After Effects functional/quality validation** after the 
 - The loop now uses `iter_mut().zip(...iter())`; output values and render behavior are unchanged.
 - Strict `clippy -D warnings` remains enabled; no lint suppression was added.
 - SHA-freeze updated only for `sdkless/src/lib.rs`.
+
+
+### GitHub Mac CI run #7 — ALL GREEN
+
+Commit: `6894bb0738b0e58345a102bf2dbdd5686c87d9db`
+
+- Static contracts: PASS.
+- Core strict: PASS.
+- Core ASan/UBSan: PASS.
+- Core TSan: PASS.
+- Native bridge + Metal: PASS.
+- Rust host quality (fmt/check/test/clippy -D warnings): PASS.
+- ARM64 plugin bundle/sign/upload: PASS.
+
+Plan item 5 is fully complete. Proceed to item 6: install the CI artifact on the target Apple Silicon Mac and perform After Effects functional/quality validation.
