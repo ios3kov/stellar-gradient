@@ -86,3 +86,19 @@ v0.8.5 registers all macro cfg names explicitly and pins `threaded_rendering`, `
 - The exact upstream MFR dependency pin and parallel CI workflow are retained.
 - `verify_sdkless_host.py` now validates the pinned upstream dependency instead of requiring the old crates.io strings.
 - Render core and Metal shader math remain unchanged.
+
+
+### GitHub Mac CI run #5 — 2026-09-27
+
+- Static contracts: PASS.
+- Core strict: PASS.
+- Core ASan/UBSan: PASS.
+- Core TSan: PASS.
+- Native bridge + Metal: PASS, including bridge ASan/UBSan.
+- ARM64 plugin bundle: PASS. The SDK-less Rust host compiled against the pinned upstream revision, the macOS bundle was created, ad-hoc signed, verified, and uploaded as the `StellarGradient-mac-arm64` artifact.
+- The previous MFR E0053 host ABI blocker is resolved.
+- Rust host quality was the only red job and stopped at `cargo fmt --check` before compile checks. This is CI-policy drift: the frozen canonical source is intentionally unformatted in places, while the local Mac gate formats an ephemeral copy. CI is now aligned with that policy by formatting and testing `.sdkless-ci`.
+- Render core and Metal shader math remain unchanged.
+
+Plan item 5: **COMPLETE — real ARM64 .plugin built in CI**.
+Plan item 6: **NEXT — After Effects functional/quality validation** after the all-green CI confirmation.

@@ -101,9 +101,13 @@ jobs:
             ~/.cargo/git
           key: cargo-quality-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.toml', env.SRC)) }}
       - name: fmt + check + test + clippy
-        working-directory: ${{ env.SRC }}/sdkless
+        working-directory: ${{ env.SRC }}
         run: |
           set -euo pipefail
+          rm -rf .sdkless-ci
+          cp -R sdkless .sdkless-ci
+          cd .sdkless-ci
+          cargo fmt --all
           cargo fmt --all -- --check
           cargo check --release
           cargo test --release
