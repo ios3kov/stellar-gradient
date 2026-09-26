@@ -154,3 +154,21 @@ Before marking item 6 fully complete, the remaining manual quality checks are: k
 - Rust check and FFI layout unit test passed for v0.8.7.
 - Removed one redundant `.into_iter()` flagged by strict Clippy.
 - No behavioral/render change.
+
+
+### Original-style control correction — v0.8.8 build 16
+
+UI/host corrections based on observable Cosmic behavior:
+
+- `Colors` renamed to `Presets` as requested.
+- Preset list now uses the ten visible Cosmic preset names: Retro Pop, Sage, Blush, Deep Space, Electric, Ultraviolet, Lagoon, Sunset, Pride Rainbow, Candy. Palette color values remain our independent clean-room values.
+- `Angle` is now a native AE Angle control, default 90°.
+- `Phase` is also a native AE Angle control, default 0°.
+- `Offset` is a percentage control: valid/slider −100..100%, default 0%; host maps it to the core's normalized offset.
+- Depth UI now matches the observable original ranges/defaults:
+  - Contrast 0..400%, slider 0..200%, default 100%.
+  - Bulge −200..200%, slider −100..100%, default 60%.
+  - Rounding 0..100%, default 100%.
+- Host maps Depth percentages to the existing clean-room core as normalized values (Contrast/Bulge/Rounding divided by 100).
+- Depth group is open by default.
+- Frozen C++ render core and Metal shader math are unchanged.
