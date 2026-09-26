@@ -127,3 +127,12 @@ Commit: `6894bb0738b0e58345a102bf2dbdd5686c87d9db`
 - ARM64 plugin bundle/sign/upload: PASS.
 
 Plan item 5 is fully complete. Proceed to item 6: install the CI artifact on the target Apple Silicon Mac and perform After Effects functional/quality validation.
+
+
+### After Effects manual smoke — 2026-09-27
+
+User installed the CI-built ARM64 `StellarGradient.plugin` on the target Apple Silicon Mac and reported that it appears to work in After Effects.
+
+Plan item 6: **PROVISIONAL PASS — plugin loads and renders in AE**.
+
+Before marking item 6 fully complete, the remaining manual quality checks are: key parameter response, GPU/CPU engine switching, 8/16/32-bpc/HDR behavior, and basic scrub/render stability. No production-speed claim yet.
