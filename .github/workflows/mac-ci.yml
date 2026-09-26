@@ -25,12 +25,12 @@ jobs:
       - name: Restore minimal source
         run: |
           python3 - <<'PY'
-          import base64, hashlib, pathlib, lzma, tarfile
+          import base64, hashlib, pathlib, lzma, tarfile, os
           root=pathlib.Path('.')
           s=(root/'ci/minimal.partA.b64').read_text().strip()+(root/'ci/minimal.partB.b64').read_text().strip()
           data=base64.b64decode(s)
           got=hashlib.sha256(data).hexdigest()
-          want="${SOURCE_SHA256}"
+          want=os.environ["SOURCE_SHA256"]
           assert got==want, (got,want)
           p=pathlib.Path('/tmp/stellar_ci_src.tar.xz'); p.write_bytes(data)
           pathlib.Path('work').mkdir(exist_ok=True)
@@ -54,10 +54,10 @@ jobs:
       - name: Restore minimal source
         run: |
           python3 - <<'PY'
-          import base64, hashlib, pathlib, tarfile
+          import base64, hashlib, pathlib, tarfile, os
           s=pathlib.Path('ci/minimal.partA.b64').read_text().strip()+pathlib.Path('ci/minimal.partB.b64').read_text().strip()
           data=base64.b64decode(s)
-          assert hashlib.sha256(data).hexdigest()=="${SOURCE_SHA256}"
+          assert hashlib.sha256(data).hexdigest()==os.environ["SOURCE_SHA256"]
           p=pathlib.Path('/tmp/stellar_ci_src.tar.xz'); p.write_bytes(data)
           pathlib.Path('work').mkdir(exist_ok=True)
           with tarfile.open(p,'r:xz') as t: t.extractall('work')
@@ -90,10 +90,10 @@ jobs:
       - name: Restore minimal source
         run: |
           python3 - <<'PY'
-          import base64, hashlib, pathlib, tarfile
+          import base64, hashlib, pathlib, tarfile, os
           s=pathlib.Path('ci/minimal.partA.b64').read_text().strip()+pathlib.Path('ci/minimal.partB.b64').read_text().strip()
           data=base64.b64decode(s)
-          assert hashlib.sha256(data).hexdigest()=="${SOURCE_SHA256}"
+          assert hashlib.sha256(data).hexdigest()==os.environ["SOURCE_SHA256"]
           p=pathlib.Path('/tmp/stellar_ci_src.tar.xz'); p.write_bytes(data)
           pathlib.Path('work').mkdir(exist_ok=True)
           with tarfile.open(p,'r:xz') as t: t.extractall('work')
