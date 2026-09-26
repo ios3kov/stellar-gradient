@@ -77,3 +77,12 @@ v0.8.5 registers all macro cfg names explicitly and pins `threaded_rendering`, `
 - Upstream inspection confirmed current MFR examples use `&self`. The SDK-less host now pins both `after-effects` and `pipl` to exact upstream revision `83dcc93734fd5db1335b6ec83cba7a6505a39dcc` so the macro/API implementation is deterministic.
 - Frozen render core and Metal shader math are unchanged.
 - CI now runs independent contracts, core strict/ASan/TSan, native bridge/Metal, Rust quality, and ARM64 bundle jobs in parallel.
+
+
+### CI tree recovery — 2026-09-27
+
+- Run #4 failed before meaningful code tests because the CI hotfix tree was accidentally created without the uploaded source tree as its Git base; this appeared as missing CMake/Rust/bridge files.
+- The source upload commit `b6fa596b...` is now the canonical base tree and all uploaded project files are restored in a normal fast-forward commit.
+- The exact upstream MFR dependency pin and parallel CI workflow are retained.
+- `verify_sdkless_host.py` now validates the pinned upstream dependency instead of requiring the old crates.io strings.
+- Render core and Metal shader math remain unchanged.
