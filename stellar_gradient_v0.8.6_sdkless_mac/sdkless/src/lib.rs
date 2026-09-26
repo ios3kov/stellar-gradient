@@ -144,7 +144,7 @@ fn apply_palette_to_color_params(params: &mut ae::Parameters<Params>, which: i32
     let Some(colors) = palette_colors(which) else { return Ok(()); };
     for (key, rgb) in [Params::Color1, Params::Color2, Params::Color3, Params::Color4, Params::Color5]
         .into_iter()
-        .zip(colors.into_iter())
+        .zip(colors)
     {
         let mut def = params.get_mut(key)?;
         {

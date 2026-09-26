@@ -147,3 +147,10 @@ Before marking item 6 fully complete, the remaining manual quality checks are: k
 - Existing persistent parameter IDs 1..49 remain unchanged; new UI-only Palette group markers use IDs 50 and 51.
 - Render core and Metal shader math are unchanged.
 - CI push filtering now avoids full rebuilds for ordinary docs-only commits.
+
+
+### Palette preset CI cleanup
+
+- Rust check and FFI layout unit test passed for v0.8.7.
+- Removed one redundant `.into_iter()` flagged by strict Clippy.
+- No behavioral/render change.
