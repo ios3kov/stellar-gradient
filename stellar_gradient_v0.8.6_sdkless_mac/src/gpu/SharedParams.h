@@ -13,8 +13,8 @@ struct ParamsGPU {
     Color3GPU colors[5];
     float angle_rad, cycles, offset, phase;
     float saturation, brightness;
-    float depth_contrast, bulge, rounding;
-    float turbulence_amount, turbulence_scale_x, turbulence_scale_y, turbulence_evolution, turbulence_softness;
+    float depth_dir_x, depth_dir_y, bulge;
+    float turbulence_amount, turbulence_scale_x, turbulence_scale_y, turbulence_evolution, depth_softness;
     float grain_amount, grain_size, grain_color;
     std::uint32_t grain_seed;
     float glow_radius, glow_falloff, glow_threshold, glow_intensity, glow_soft_clip;
@@ -31,7 +31,7 @@ struct ParamsGPU {
     // Frame-constant values precomputed on CPU. Keeping transcendental math
     // out of the per-pixel Metal path is both faster and improves CPU/GPU parity.
     float dir_x, dir_y, inv_bw, inv_bh;
-    float bound_cx, bound_cy, phase_offset, depth_exp;
+    float bound_cx, bound_cy, phase_offset, depth_contrast;
     float rounding_clamped, turbulence_inv_x, turbulence_inv_y, turbulence_evo_x;
     float turbulence_evo_y, grain_inv_size, glow_lod, glow_spread;
     float glow_threshold_inv, diffusion_lod, diffusion_cx, diffusion_cy;

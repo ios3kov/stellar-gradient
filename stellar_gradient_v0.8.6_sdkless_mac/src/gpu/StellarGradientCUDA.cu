@@ -6,8 +6,9 @@ struct SGParamsGPU {
     SGColor3 colors[5];
     float angle_rad, cycles, offset, phase;
     float saturation, brightness;
-    float depth_contrast, bulge;
-    float turbulence_amount, turbulence_scale_x, turbulence_scale_y, turbulence_evolution, turbulence_softness;
+    float depth_dir_x, depth_dir_y, bulge;
+    float turbulence_amount, turbulence_scale_x, turbulence_scale_y, turbulence_evolution, depth_softness;
+    float depth_contrast, rounding;
     float grain_amount, grain_color;
     unsigned int grain_seed;
     float glow_threshold, glow_intensity, glow_soft_clip;
@@ -60,12 +61,8 @@ extern "C" __global__ void SGBaseKernel(
     float cx=.5f*float(p.min_x+p.max_x), cy=.5f*float(p.min_y+p.max_y);
     float nx=(float(x)-cx)/bw, ny=(float(y)-cy)/bh;
     float u=(nx*cosf(p.angle_rad)+ny*sinf(p.angle_rad))*p.cycles+p.offset+p.phase;
-    if(p.turbulence_amount!=0.f){
-        float tx=float(x)/fmaxf(1.f,p.turbulence_scale_x)+p.turbulence_evolution*.013f;
-        float ty=float(y)/fmaxf(1.f,p.turbulence_scale_y)+p.turbulence_evolution*.017f;
-        u+=sg_fbm(tx,ty,p.turbulence_softness,0x6d2b79f5U)*p.turbulence_amount;
-    }
-    float dome=sg_clamp01(1.f-(nx*nx+ny*ny)*4.f); dome=powf(fmaxf(dome,1e-6f),fmaxf(.05f,p.depth_contrast)); u+=(dome-.5f)*p.bulge;
+    // CUDA host parity will be completed with the Windows build path.
+    (void)p.depth_dir_x;(void)p.depth_dir_y;(void)p.depth_softness;(void)p.depth_contrast;(void)p.rounding;
     SGColor3 c=sg_palette(p,u);
     if(p.grain_amount>0.f){
         unsigned h=sg_hash(p.grain_seed ^ unsigned(x)*73856093U ^ unsigned(y)*19349663U);

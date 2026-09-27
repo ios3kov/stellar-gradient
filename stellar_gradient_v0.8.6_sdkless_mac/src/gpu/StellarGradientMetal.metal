@@ -6,8 +6,8 @@ struct SGParamsGPU {
     SGColor3 colors[5];
     float angle_rad, cycles, offset, phase;
     float saturation, brightness;
-    float depth_contrast, bulge, rounding;
-    float turbulence_amount, turbulence_scale_x, turbulence_scale_y, turbulence_evolution, turbulence_softness;
+    float depth_dir_x, depth_dir_y, bulge;
+    float turbulence_amount, turbulence_scale_x, turbulence_scale_y, turbulence_evolution, depth_softness;
     float grain_amount, grain_size, grain_color;
     uint grain_seed;
     float glow_radius, glow_falloff, glow_threshold, glow_intensity, glow_soft_clip;
@@ -21,7 +21,7 @@ struct SGParamsGPU {
     int origin_x, origin_y;
     int min_x,min_y,max_x,max_y;
     float dir_x,dir_y,inv_bw,inv_bh;
-    float bound_cx,bound_cy,phase_offset,depth_exp;
+    float bound_cx,bound_cy,phase_offset,depth_contrast;
     float rounding_clamped,turbulence_inv_x,turbulence_inv_y,turbulence_evo_x;
     float turbulence_evo_y,grain_inv_size,glow_lod,glow_spread;
     float glow_threshold_inv,diffusion_lod,diffusion_cx,diffusion_cy;
@@ -44,14 +44,31 @@ inline float4 load_bgra(device const float4* src,constant SGParamsGPU& p,uint2 g
     return float4(q.z,q.y,q.x,q.w);
 } // AE GPU worlds are BGRA128
 inline void store_bgra(device float4* dst,int pitch,uint2 gid,float4 q){dst[gid.y*uint(pitch)+gid.x]=float4(q.z,q.y,q.x,q.w);}
+inline float alpha_at(device const float4* src,constant SGParamsGPU& p,float2 pos){
+    int x0=int(floor(pos.x)),y0=int(floor(pos.y));float fx=pos.x-float(x0),fy=pos.y-float(y0);
+    auto a=[&](int wx,int wy){int sx=wx-p.src_offset_x,sy=wy-p.src_offset_y;if(sx<0||sy<0||sx>=p.src_width||sy>=p.src_height)return 0.0f;return clamp01(src[uint(sy)*uint(p.src_pitch)+uint(sx)].w);};
+    return mix(mix(a(x0,y0),a(x0+1,y0),fx),mix(a(x0,y0+1),a(x0+1,y0+1),fx),fy);
+}
 
 inline float4 shade_base(device const float4* src, constant SGParamsGPU& p, uint2 gid) {
     float4 s=load_bgra(src,p,gid); float alpha=clamp01(s.a);
     float nx=(float(gid.x)-p.bound_cx)*p.inv_bw,ny=(float(gid.y)-p.bound_cy)*p.inv_bh;
     float u=(nx*p.dir_x+ny*p.dir_y)*p.cycles+p.phase_offset;
     float2 layer_pos=float2(int(gid.x)+p.origin_x,int(gid.y)+p.origin_y);
-    if(p.turbulence_amount!=0){u+=fbm(layer_pos.x*p.turbulence_inv_x+p.turbulence_evo_x,layer_pos.y*p.turbulence_inv_y+p.turbulence_evo_y,p.turbulence_softness,0x6d2b79f5u)*p.turbulence_amount;}
-    if(p.depth_enabled!=0u){ float dome=clamp01(1.0f-(nx*nx+ny*ny)*4.0f); dome=mix(dome,sm(dome),p.rounding_clamped); dome=pow(max(dome,1e-6f),p.depth_exp); u+=(dome-.5f)*p.bulge; }
+    if(p.depth_enabled!=0u){
+        float2 sample_pos=float2(gid);
+        if(p.turbulence_amount>0.0f){
+            float jx=fbm(layer_pos.x*p.turbulence_inv_x+p.turbulence_evo_x,layer_pos.y*p.turbulence_inv_y+p.turbulence_evo_y,0.5f,0x6d2b79f5u);
+            float jy=fbm(layer_pos.x*p.turbulence_inv_x-p.turbulence_evo_y,layer_pos.y*p.turbulence_inv_y+p.turbulence_evo_x,0.5f,0x9e3779b9u);
+            sample_pos+=float2(jx,jy)*p.turbulence_amount;
+        }
+        float radius=max(0.75f,0.5f*p.depth_softness+0.75f);
+        float2 d=float2(p.depth_dir_x,p.depth_dir_y)*radius;
+        float edge=0.5f*(alpha_at(src,p,sample_pos-d)-alpha_at(src,p,sample_pos+d));
+        float mag=clamp01(abs(edge)*max(0.0f,p.depth_contrast)*2.0f);
+        float shaped=mix(mag,sm(mag),p.rounding_clamped);
+        u+=copysign(shaped,edge)*p.bulge;
+    }
     float3 c=palette(p,u);
     if(p.grain_amount>0){uint gx=uint(int(floor(layer_pos.x*p.grain_inv_size))),gy=uint(int(floor(layer_pos.y*p.grain_inv_size)));uint h=h32(p.grain_seed ^ gx*73856093u ^ gy*19349663u);float mono=(h01(h)-.5f)*2.0f*p.grain_amount;float3 chr=float3(h01(h^0x68bc21ebu),h01(h^0x02e5be93u),h01(h^0x967a889bu));chr=(chr-.5f)*2.0f*p.grain_amount;c+=mix(float3(mono),chr,p.grain_color);}
     return float4(c*alpha,alpha);

@@ -29,9 +29,8 @@ inline float soft_clip(float v, float soft) {
 }
 
 struct CpuRenderWorkspace {
-    // Glow and diffusion never need their mip pyramids at the same time.
-    // Reusing one pyramid cuts peak/retained scratch memory roughly in half.
     MipPyramidRGBA pyramid;
+    std::vector<float> depth_alpha;
 };
 
 thread_local CpuRenderWorkspace g_workspace;
@@ -44,8 +43,24 @@ struct WorkspaceTrimGuard {
         const unsigned active = std::max(1u, g_active_render_calls.load(std::memory_order_relaxed));
         const std::size_t per_render_budget = std::max<std::size_t>(32u * 1024u * 1024u, kBaseRetentionBudget / active);
         g_workspace.pyramid.trim_retained_bytes(per_render_budget);
+        if (g_workspace.depth_alpha.capacity() * sizeof(float) > per_render_budget / 2u) {
+            std::vector<float>().swap(g_workspace.depth_alpha);
+        }
     }
 };
+
+inline float sample_alpha_bilinear(const std::vector<float>& alpha, int w, int h, float x, float y) {
+    if (w <= 0 || h <= 0 || alpha.empty()) return 0.0f;
+    const int x0 = static_cast<int>(std::floor(x));
+    const int y0 = static_cast<int>(std::floor(y));
+    const float fx = x - static_cast<float>(x0);
+    const float fy = y - static_cast<float>(y0);
+    auto at = [&](int xx, int yy) {
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) return 0.0f;
+        return alpha[static_cast<std::size_t>(yy) * static_cast<std::size_t>(w) + static_cast<std::size_t>(xx)];
+    };
+    return lerp(lerp(at(x0,y0),at(x0+1,y0),fx), lerp(at(x0,y0+1),at(x0+1,y0+1),fx), fy);
+}
 
 } // namespace
 
@@ -67,15 +82,32 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
     const float dir_y = std::sin(a);
     const std::uint32_t seed = q.grain_animate ? frame_index * 1664525u + 1013904223u : 0x12345678u;
     const bool depth_active = std::abs(q.bulge) > 1.0e-6f;
+    const bool depth_turbulence = depth_active && q.turbulence_amount_px > 1.0e-6f;
     const float rounding = clamp01(q.rounding);
-    const float depth_exp = std::max(0.05f, q.depth_contrast);
-    const float turbulence_sx = std::max(1.0f, q.turbulence_size_x);
-    const float turbulence_sy = std::max(1.0f, q.turbulence_size_y);
-    const float turbulence_evo_x = q.turbulence_evolution * 0.013f;
-    const float turbulence_evo_y = q.turbulence_evolution * 0.017f;
+    const float depth_angle = q.depth_angle_deg * 3.14159265358979323846f / 180.0f;
+    const float depth_dir_x = std::cos(depth_angle);
+    const float depth_dir_y = std::sin(depth_angle);
+    const float depth_sample_radius = std::max(0.75f, 0.5f * q.depth_softness_px + 0.75f);
+    const float turbulence_sx = std::max(0.1f, q.turbulence_size_x) * 64.0f;
+    const float turbulence_sy = std::max(0.1f, q.turbulence_size_y) * 64.0f;
+    const float turbulence_evo_x = q.turbulence_evolution_deg * 0.013f;
+    const float turbulence_evo_y = q.turbulence_evolution_deg * 0.017f;
     const float grain_size = std::max(0.5f, q.grain_size_px);
     const float glow_threshold_inv = 1.0f / std::max(1e-5f, 1.0f - q.glow_threshold);
     const float glow_spread = std::max(0.35f, 0.45f * q.glow_falloff);
+
+    if (depth_active) {
+        g_workspace.depth_alpha.resize(static_cast<std::size_t>(img.width) * static_cast<std::size_t>(img.height));
+        parallel_rows(0, img.height, [&](int y0, int y1) {
+            for (int y = y0; y < y1; ++y) {
+                const float* src = img.src_rgba + static_cast<std::size_t>(y) * static_cast<std::size_t>(img.stride_floats);
+                float* arow = g_workspace.depth_alpha.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width);
+                for (int x = 0; x < img.width; ++x) arow[x] = clamp01(src[x * 4 + 3]);
+            }
+        });
+    } else {
+        g_workspace.depth_alpha.clear();
+    }
 
     float* glow_source = nullptr;
     if (plan.glow) {
@@ -97,21 +129,29 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                 const float ny = (static_cast<float>(y) - cy) / bh;
                 float u = (nx * dir_x + ny * dir_y) * q.cycles + q.offset + q.phase_deg / 360.0f;
 
-                if (plan.turbulence) {
+                if (depth_active) {
                     const float layer_x = static_cast<float>(img.origin_x + x);
                     const float layer_y = static_cast<float>(img.origin_y + y);
-                    u += fbm(layer_x / turbulence_sx + turbulence_evo_x,
-                             layer_y / turbulence_sy + turbulence_evo_y,
-                             q.turbulence_softness,
-                             0x6d2b79f5u) * q.turbulence_amount;
-                }
-
-                if (depth_active) {
-                    const float r2 = nx * nx + ny * ny;
-                    float dome = clamp01(1.0f - r2 * 4.0f);
-                    dome = lerp(dome, smooth01(dome), rounding);
-                    dome = std::pow(std::max(dome, 1e-6f), depth_exp);
-                    u += (dome - 0.5f) * q.bulge;
+                    float sample_x = static_cast<float>(x);
+                    float sample_y = static_cast<float>(y);
+                    if (depth_turbulence) {
+                        const float jx = fbm(layer_x / turbulence_sx + turbulence_evo_x,
+                                             layer_y / turbulence_sy + turbulence_evo_y,
+                                             0.5f, 0x6d2b79f5u);
+                        const float jy = fbm(layer_x / turbulence_sx - turbulence_evo_y,
+                                             layer_y / turbulence_sy + turbulence_evo_x,
+                                             0.5f, 0x9e3779b9u);
+                        sample_x += jx * q.turbulence_amount_px;
+                        sample_y += jy * q.turbulence_amount_px;
+                    }
+                    const float a_minus = sample_alpha_bilinear(g_workspace.depth_alpha, img.width, img.height,
+                        sample_x - depth_dir_x * depth_sample_radius, sample_y - depth_dir_y * depth_sample_radius);
+                    const float a_plus = sample_alpha_bilinear(g_workspace.depth_alpha, img.width, img.height,
+                        sample_x + depth_dir_x * depth_sample_radius, sample_y + depth_dir_y * depth_sample_radius);
+                    const float signed_edge = 0.5f * (a_minus - a_plus);
+                    const float magnitude = clamp01(std::abs(signed_edge) * std::max(0.0f, q.depth_contrast) * 2.0f);
+                    const float shaped = lerp(magnitude, smooth01(magnitude), rounding);
+                    u += std::copysign(shaped, signed_edge) * q.bulge;
                 }
 
                 Color3f c = adjust_sat_brightness(sample_palette(q.colors, u), q.saturation, q.brightness);
