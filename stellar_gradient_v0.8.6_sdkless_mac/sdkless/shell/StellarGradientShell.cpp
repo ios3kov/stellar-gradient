@@ -45,6 +45,9 @@ using ImplEffectMainFn = PF_Err (*)(
     PF_LayerDef*,
     void*);
 using ImplLabelFn = int (*)(char*, std::size_t);
+using ImplAbiFn = std::uint32_t (*)();
+using ImplStateAbiFn = std::uint64_t (*)();
+using ImplKeyFn = int (*)(char*, std::size_t);
 
 namespace {
 
@@ -59,6 +62,9 @@ constexpr A_long kAEEffectKind = FourCC('e', 'F', 'K', 'T');
 constexpr A_long kApiMajor = 13;
 constexpr A_long kApiMinor = 29;
 constexpr A_long kRegistrationReservedInfo = 8;
+constexpr std::uint32_t kImplementationAbi = 1;
+constexpr std::uint64_t kImplementationStateAbi = 1;
+constexpr const char* kImplementationKey = "stellar-gradient";
 
 std::atomic<ImplEffectMainFn> g_effect_main{nullptr};
 std::mutex g_reload_mutex;
@@ -204,6 +210,41 @@ int LoadImplementation(bool force, std::string* detail) {
                       (error ? error : "unknown");
         }
         return -5205;
+    }
+
+    auto abi_fn = reinterpret_cast<ImplAbiFn>(
+        dlsym(handle, "AEHotLoader_ImplementationABI"));
+    auto state_abi_fn = reinterpret_cast<ImplStateAbiFn>(
+        dlsym(handle, "AEHotLoader_ImplementationStateABI"));
+    auto key_fn = reinterpret_cast<ImplKeyFn>(
+        dlsym(handle, "AEHotLoader_ImplementationKey"));
+
+    if (!abi_fn || !state_abi_fn || !key_fn) {
+        if (detail) *detail = "Implementation hot-reload ABI exports are missing.";
+        g_loaded_handles.push_back(handle);
+        return -5190;
+    }
+    if (abi_fn() != kImplementationAbi) {
+        if (detail) *detail = "Implementation protocol ABI mismatch.";
+        g_loaded_handles.push_back(handle);
+        return -5191;
+    }
+    if (state_abi_fn() != kImplementationStateAbi) {
+        if (detail) *detail = "Implementation state/schema ABI mismatch; rebuild shell and restart AE.";
+        g_loaded_handles.push_back(handle);
+        return -5192;
+    }
+
+    char key_buffer[256]{};
+    if (key_fn(key_buffer, sizeof(key_buffer)) != 0 ||
+        std::strcmp(key_buffer, kImplementationKey) != 0) {
+        if (detail) {
+            *detail = std::string("Implementation key mismatch: expected ") +
+                      kImplementationKey + ", got " +
+                      (key_buffer[0] ? key_buffer : "(invalid)");
+        }
+        g_loaded_handles.push_back(handle);
+        return -5193;
     }
 
     std::string label = "Stellar Gradient implementation";
