@@ -15,8 +15,19 @@ if pgrep -x "After Effects" >/dev/null 2>&1; then
   exit 3
 fi
 
+typeset -a search_roots
+search_roots=(
+  "$SYSTEM_ROOT"
+  "$USER_ROOT"
+  "/Library/Application Support/Adobe/Plug-Ins/CC"
+  "$HOME/Library/Application Support/Adobe/Plug-Ins/CC"
+)
+for app_plugins in /Applications/Adobe\ After\ Effects*.app/Contents/Plug-ins; do
+  [[ -d "$app_plugins" ]] && search_roots+=("$app_plugins")
+done
+
 typeset -a matches
-for root in "$SYSTEM_ROOT" "$USER_ROOT"; do
+for root in "${search_roots[@]}"; do
   [[ -d "$root" ]] || continue
   while IFS= read -r found; do
     matches+=("$found")
@@ -43,14 +54,18 @@ BACKUP_MADE=0
 
 restore_on_error() {
   local rc=$?
-  if (( rc != 0 && BACKUP_MADE == 1 )); then
-    echo "Install failed; restoring previous StellarGradient.plugin..."
+  if (( rc != 0 )); then
+    echo "Install failed; cleaning partial StellarGradient.plugin..."
     if (( USE_SUDO )); then
       sudo rm -rf "$TARGET"
-      sudo mv "$BACKUP" "$TARGET"
+      if (( BACKUP_MADE == 1 )); then
+        sudo mv "$BACKUP" "$TARGET"
+      fi
     else
       rm -rf "$TARGET"
-      mv "$BACKUP" "$TARGET"
+      if (( BACKUP_MADE == 1 )); then
+        mv "$BACKUP" "$TARGET"
+      fi
     fi
   fi
   exit $rc
