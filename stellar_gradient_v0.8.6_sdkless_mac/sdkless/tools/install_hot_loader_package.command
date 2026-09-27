@@ -10,6 +10,10 @@ STAGED_DIR="$HOME/Library/Application Support/AE Hot Loader/implementations/stel
 
 [[ -d "$BUNDLE" ]] || { echo "ERROR: missing $BUNDLE"; exit 2; }
 
+codesign --verify --deep --strict "$BUNDLE"
+bundle_archs="$(lipo -archs "$BUNDLE/Contents/MacOS/StellarGradient" 2>/dev/null || true)"
+[[ "$bundle_archs" == *arm64* ]] || { echo "ERROR: Stellar Gradient shell is not arm64."; exit 2; }
+
 if pgrep -x "After Effects" >/dev/null 2>&1; then
   echo "ERROR: After Effects is running. Fully quit AE before installing."
   exit 3
@@ -45,6 +49,13 @@ if (( ${#matches[@]} == 1 )); then
   TARGET="${matches[1]}"
 else
   TARGET="$USER_ROOT/StellarGradient.plugin"
+fi
+
+if [[ "$TARGET" == /Applications/*.app/Contents/Plug-ins/* ]]; then
+  echo "ERROR: existing Stellar Gradient copy is inside the signed After Effects application bundle:"
+  echo "  $TARGET"
+  echo "Do not modify the Adobe app bundle. Remove/relocate that custom copy first."
+  exit 5
 fi
 
 BACKUP="${TARGET}.pre-ae-hot-loader"
