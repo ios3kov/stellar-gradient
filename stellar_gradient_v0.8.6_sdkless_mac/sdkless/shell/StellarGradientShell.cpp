@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
-#include <shared_mutex>
+#include <thread>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -70,11 +70,60 @@ constexpr const char* kImplementationKey = "stellar-gradient";
 
 std::atomic<ImplEffectMainFn> g_effect_main{nullptr};
 std::mutex g_reload_mutex;
-std::shared_mutex g_call_gate;
+std::atomic<std::uint32_t> g_active_calls{0};
+std::atomic<bool> g_swap_pending{false};
 std::vector<void*> g_loaded_handles;
 std::string g_loaded_source;
 std::uint64_t g_loaded_fingerprint = 0;
 std::uint64_t g_reload_ordinal = 0;
+
+
+class EffectCallGuard {
+public:
+    EffectCallGuard() {
+        for (;;) {
+            while (g_swap_pending.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+
+            g_active_calls.fetch_add(1, std::memory_order_acq_rel);
+            if (!g_swap_pending.load(std::memory_order_acquire)) {
+                active_ = true;
+                return;
+            }
+
+            g_active_calls.fetch_sub(1, std::memory_order_acq_rel);
+        }
+    }
+
+    ~EffectCallGuard() {
+        if (active_) {
+            g_active_calls.fetch_sub(1, std::memory_order_acq_rel);
+        }
+    }
+
+    EffectCallGuard(const EffectCallGuard&) = delete;
+    EffectCallGuard& operator=(const EffectCallGuard&) = delete;
+
+private:
+    bool active_ = false;
+};
+
+class SwapPendingGuard {
+public:
+    explicit SwapPendingGuard(bool active) : active_(active) {}
+    ~SwapPendingGuard() {
+        if (active_) {
+            g_swap_pending.store(false, std::memory_order_release);
+        }
+    }
+
+    SwapPendingGuard(const SwapPendingGuard&) = delete;
+    SwapPendingGuard& operator=(const SwapPendingGuard&) = delete;
+
+private:
+    bool active_ = false;
+};
 
 void Log(const std::string& message) {
     if (FILE* f = std::fopen("/tmp/ae-hot-loader-stellar-gradient-shell.log", "a")) {
@@ -285,8 +334,24 @@ int LoadImplementationFromSourceLocked(
     // Quiescent swap: let already-running MFR/render calls finish and prevent
     // a mix of old/new implementation code from touching the same AE state.
     {
-        std::unique_lock<std::shared_mutex> call_lock(g_call_gate, std::try_to_lock);
-        if (!call_lock.owns_lock()) {
+        bool expected = false;
+        if (!g_swap_pending.compare_exchange_strong(
+                expected,
+                true,
+                std::memory_order_acq_rel,
+                std::memory_order_acquire)) {
+            dlclose(handle);
+            std::error_code remove_error;
+            std::filesystem::remove(runtime_path, remove_error);
+            if (detail) {
+                *detail = "Another implementation swap is already pending; retry Reload Plugins.";
+            }
+            return -4112;
+        }
+
+        SwapPendingGuard swap_guard(true);
+
+        if (g_active_calls.load(std::memory_order_acquire) != 0) {
             dlclose(handle);
             std::error_code remove_error;
             std::filesystem::remove(runtime_path, remove_error);
@@ -358,9 +423,9 @@ PF_Err ForwardEffectMain(
         }
     }
 
-    // Shared gate keeps MFR calls concurrent with each other, but a reload
-    // waits for all in-flight calls before publishing a new EffectMain.
-    std::shared_lock<std::shared_mutex> call_lock(g_call_gate);
+    // Reentrant-safe call guard: MFR calls stay concurrent. A reload publishes
+    // a new pointer only when no EffectMain call is active.
+    EffectCallGuard call_guard;
     ImplEffectMainFn fn = g_effect_main.load(std::memory_order_acquire);
     if (!fn) {
         return -4106;
