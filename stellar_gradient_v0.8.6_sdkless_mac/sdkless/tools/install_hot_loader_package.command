@@ -58,7 +58,9 @@ if [[ "$TARGET" == /Applications/*.app/Contents/Plug-ins/* ]]; then
   exit 5
 fi
 
-BACKUP="${TARGET}.pre-ae-hot-loader"
+BACKUP_ROOT="$HOME/Library/Application Support/AE Hot Loader/backups/stellar-gradient"
+mkdir -p "$BACKUP_ROOT"
+BACKUP="$BACKUP_ROOT/StellarGradient-$(date +%Y%m%dT%H%M%S)-$.plugin"
 USE_SUDO=0
 [[ "$TARGET" == /Library/* ]] && USE_SUDO=1
 BACKUP_MADE=0
@@ -70,12 +72,14 @@ restore_on_error() {
     if (( USE_SUDO )); then
       sudo rm -rf "$TARGET"
       if (( BACKUP_MADE == 1 )); then
-        sudo mv "$BACKUP" "$TARGET"
+        sudo cp -R "$BACKUP" "$TARGET"
+        sudo xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
       fi
     else
       rm -rf "$TARGET"
       if (( BACKUP_MADE == 1 )); then
-        mv "$BACKUP" "$TARGET"
+        cp -R "$BACKUP" "$TARGET"
+        xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
       fi
     fi
   fi
@@ -85,19 +89,19 @@ trap restore_on_error EXIT
 
 if (( USE_SUDO )); then
   sudo mkdir -p "${TARGET:h}"
-  sudo rm -rf "$BACKUP"
   if [[ -d "$TARGET" ]]; then
-    sudo mv "$TARGET" "$BACKUP"
+    cp -R "$TARGET" "$BACKUP"
     BACKUP_MADE=1
+    sudo rm -rf "$TARGET"
   fi
   sudo cp -R "$BUNDLE" "$TARGET"
   sudo xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
 else
   mkdir -p "${TARGET:h}"
-  rm -rf "$BACKUP"
   if [[ -d "$TARGET" ]]; then
-    mv "$TARGET" "$BACKUP"
+    cp -R "$TARGET" "$BACKUP"
     BACKUP_MADE=1
+    rm -rf "$TARGET"
   fi
   cp -R "$BUNDLE" "$TARGET"
   xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
