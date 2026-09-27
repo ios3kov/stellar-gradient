@@ -16,6 +16,7 @@ cp -R "$HOST_SRC" "$HOST_BUILD"
 
 unset AESDK_ROOT AE_SDK_PATH PRSDK_ROOT || true
 export RUSTFLAGS="--cfg threaded_rendering --cfg smart_render --cfg gpu_render --cfg catch_panics"
+export MACOSX_DEPLOYMENT_TARGET="11.0"
 export AE_HOT_LOADER_IMPL_LABEL="$LABEL"
 
 echo "Building Stellar Gradient implementation: $LABEL"
