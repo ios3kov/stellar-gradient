@@ -35,6 +35,7 @@ jobs:
           cp -R "$SRC/sdkless" "$FMT_COPY"
           cargo fmt --manifest-path "$FMT_COPY/Cargo.toml"
           cargo fmt --manifest-path "$FMT_COPY/Cargo.toml" -- --check
+          python3 stellar_gradient_v0.8.6_sdkless_mac/sdkless/tools/verify_shell_metadata.py stellar_gradient_v0.8.6_sdkless_mac/sdkless/build.rs stellar_gradient_v0.8.6_sdkless_mac/sdkless/shell/StellarGradientShell.cpp
           zsh -n "$SRC/sdkless/tools/stage_hot_reload_macos.command"
           zsh -n "$SRC/sdkless/tools/install_hot_loader_package.command"
           zsh -n "$SRC/sdkless/tools/stage_packaged_hot_reload.command"
