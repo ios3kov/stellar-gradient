@@ -84,6 +84,12 @@ jobs:
           nm -gU "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep -E 'EffectMain|AEHotLoader_ImplementationABI|AEHotLoader_ImplementationStateABI|AEHotLoader_ImplementationKey|AEHotLoader_ImplementationLabel'
           strings "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep 'stellar-default'
           strings "$CANDIDATE_ROOT/libstellar_gradient_host.dylib" | grep 'stellar-candidate-v2'
+          for impl in "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" "$CANDIDATE_ROOT/libstellar_gradient_host.dylib"; do
+            if otool -L "$impl" | tail -n +2 | grep -E '@(rpath|loader_path|executable_path)'; then
+              echo "ERROR: hot-reload implementation has relative/private dylib dependencies: $impl"
+              exit 6
+            fi
+          done
           plutil -lint "$BUNDLE/Contents/Info.plist"
 
           ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient-hot-loader-shell.zip
