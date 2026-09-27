@@ -67,6 +67,7 @@ constexpr A_long kRegistrationReservedInfo = 8;
 constexpr std::uint32_t kImplementationAbi = 1;
 constexpr std::uint64_t kImplementationStateAbi = 1;
 constexpr const char* kImplementationKey = "stellar-gradient";
+constexpr std::size_t kMaxImplementationGenerations = 64;
 
 std::atomic<ImplEffectMainFn> g_effect_main{nullptr};
 std::mutex g_reload_mutex;
@@ -272,6 +273,16 @@ int LoadImplementationFromSourceLocked(
         std::filesystem::remove(runtime_path, remove_error);
         if (detail) *detail = "Stellar Gradient implementation unchanged.";
         return 1;
+    }
+
+    if (g_loaded_handles.size() >= kMaxImplementationGenerations) {
+        std::error_code remove_error;
+        std::filesystem::remove(runtime_path, remove_error);
+        if (detail) {
+            *detail =
+                "Hot-reload generation limit reached; restart After Effects before loading more builds.";
+        }
+        return -4114;
     }
 
     void* handle = dlopen(runtime_path.c_str(), RTLD_NOW | RTLD_LOCAL);
