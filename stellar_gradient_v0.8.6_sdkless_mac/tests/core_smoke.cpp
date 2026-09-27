@@ -46,6 +46,9 @@ int main() {
     stellar::Params loop=p;
     loop.glow_intensity=0.0f;
     loop.grain_amount=0.0f;
+    loop.diffusion_blur_px=0.0f;
+    loop.turbulence_amount=0.0f;
+    loop.bulge=0.0f;
     loop.phase_deg=0.0f;
     stellar::ImageF32 ic{W,H,S,src.data(),c.data(),content};
     stellar::render_reference(ic,loop,0.0,0);
