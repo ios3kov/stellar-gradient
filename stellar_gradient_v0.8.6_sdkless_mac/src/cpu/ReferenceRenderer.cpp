@@ -124,6 +124,8 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
         const std::size_t pixels = static_cast<std::size_t>(img.width) * static_cast<std::size_t>(img.height);
         g_workspace.depth_a.resize(pixels);
         g_workspace.depth_b.resize(pixels);
+        auto& depth_a_buf = g_workspace.depth_a;
+        auto& depth_b_buf = g_workspace.depth_b;
         parallel_rows(0, img.height, [&](int y0, int y1) {
             for (int y = y0; y < y1; ++y) {
                 const float* src = img.src_rgba + static_cast<std::size_t>(y) * static_cast<std::size_t>(img.stride_floats);
@@ -136,7 +138,7 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                     if (alpha > 0.0f && std::abs(q.depth_contrast - 1.0f) > 1.0e-3f) {
                         depth = alpha * clamp01((depth - 0.5f) * q.depth_contrast + 0.5f);
                     }
-                    g_workspace.depth_a[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)] = depth;
+                    depth_a_buf[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)] = depth;
                 }
             }
         });
@@ -147,11 +149,11 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
         const int radius = sigma > 0.5f ? std::max(1, static_cast<int>(std::lround(sigma / 3.0f))) : 0;
         if (radius > 0) {
             for (int pass = 0; pass < 3; ++pass) {
-                box_blur_h(g_workspace.depth_a, g_workspace.depth_b, img.width, img.height, radius);
-                box_blur_v(g_workspace.depth_b, g_workspace.depth_a, img.width, img.height, radius);
+                box_blur_h(depth_a_buf, depth_b_buf, img.width, img.height, radius);
+                box_blur_v(depth_b_buf, depth_a_buf, img.width, img.height, radius);
             }
         }
-        depth_map = g_workspace.depth_a.data();
+        depth_map = depth_a_buf.data();
     }
 
     float* glow_source = nullptr;
