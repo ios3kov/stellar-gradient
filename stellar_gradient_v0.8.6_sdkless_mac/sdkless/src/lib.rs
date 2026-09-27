@@ -38,11 +38,11 @@ impl Default for ParamsC {
     fn default() -> Self {
         Self {
             colors: [Color3::default(); 5], angle_deg: 90.0, cycles: 1.0, offset: 0.0, phase_deg: 0.0,
-            saturation: 1.0, brightness: 1.0, depth_contrast: 1.0, bulge: 0.0, rounding: 0.0,
-            turbulence_amount: 0.0, turbulence_size_x: 120.0, turbulence_size_y: 120.0, turbulence_evolution: 0.0, turbulence_softness: 0.5,
-            glow_radius_px: 60.0, glow_falloff: 1.6, glow_threshold: 0.2, glow_intensity: 0.8, glow_soft_clip: 0.25,
-            grain_amount: 0.03, grain_size_px: 1.0, grain_color: 0.0, grain_animate: 1,
-            diffusion_blur_px: 0.0, diffusion_center: Point2 { x: 0.5, y: 0.5 }, diffusion_focus_px: 120.0, diffusion_feather_px: 200.0,
+            saturation: 1.0, brightness: 1.0, depth_contrast: 1.0, bulge: 0.6, rounding: 1.0,
+            turbulence_amount: 0.4, turbulence_size_x: 3.0, turbulence_size_y: 3.0, turbulence_evolution: 0.0, turbulence_softness: 0.4,
+            glow_radius_px: 194.0, glow_falloff: 0.5, glow_threshold: 0.0, glow_intensity: 1.6, glow_soft_clip: 0.0,
+            grain_amount: 0.2, grain_size_px: 1.0, grain_color: 1.0, grain_animate: 1,
+            diffusion_blur_px: 15.0, diffusion_center: Point2 { x: 0.5, y: 0.5 }, diffusion_focus_px: 50.0, diffusion_feather_px: 450.0,
             diffusion_invert: 0, quality: 1,
         }
     }
@@ -178,13 +178,24 @@ fn gather_params(params: &mut ae::Parameters<Params>) -> Result<(ParamsC,i32), a
     f!(cycles,Params::Cycles);
     p.offset=(params.get(Params::Offset)?.as_float_slider()?.value() as f32)*0.01;
     p.phase_deg=params.get(Params::Phase)?.as_angle()?.float_value()? as f32;
-    f!(saturation,Params::Saturation); f!(brightness,Params::Brightness);
+    p.saturation=(params.get(Params::Saturation)?.as_float_slider()?.value() as f32)*0.01;
+    p.brightness=(params.get(Params::Brightness)?.as_float_slider()?.value() as f32)*0.01;
     p.depth_contrast=(params.get(Params::Contrast)?.as_float_slider()?.value() as f32)*0.01;
     p.bulge=(params.get(Params::Bulge)?.as_float_slider()?.value() as f32)*0.01;
     p.rounding=(params.get(Params::Rounding)?.as_float_slider()?.value() as f32)*0.01;
-    f!(turbulence_amount,Params::TurbAmount); f!(turbulence_size_x,Params::TurbSizeX); f!(turbulence_size_y,Params::TurbSizeY); f!(turbulence_evolution,Params::TurbEvolution); f!(turbulence_softness,Params::TurbSoftness);
-    f!(glow_radius_px,Params::GlowRadius); f!(glow_falloff,Params::GlowFalloff); f!(glow_threshold,Params::GlowThreshold); f!(glow_intensity,Params::GlowIntensity); f!(glow_soft_clip,Params::GlowSoftClip);
-    f!(grain_amount,Params::GrainAmount); f!(grain_size_px,Params::GrainSize); f!(grain_color,Params::GrainColor); p.grain_animate=params.get(Params::GrainAnimate)?.as_checkbox()?.value() as u32;
+    p.turbulence_amount=(params.get(Params::TurbAmount)?.as_float_slider()?.value() as f32)*0.01;
+    f!(turbulence_size_x,Params::TurbSizeX); f!(turbulence_size_y,Params::TurbSizeY);
+    p.turbulence_evolution=params.get(Params::TurbEvolution)?.as_angle()?.float_value()? as f32;
+    p.turbulence_softness=(params.get(Params::TurbSoftness)?.as_float_slider()?.value() as f32)*0.01;
+    f!(glow_radius_px,Params::GlowRadius);
+    p.glow_falloff=(params.get(Params::GlowFalloff)?.as_float_slider()?.value() as f32)*0.01;
+    p.glow_threshold=(params.get(Params::GlowThreshold)?.as_float_slider()?.value() as f32)*0.01;
+    p.glow_intensity=(params.get(Params::GlowIntensity)?.as_float_slider()?.value() as f32)*0.01;
+    p.glow_soft_clip=(params.get(Params::GlowSoftClip)?.as_float_slider()?.value() as f32)*0.01;
+    p.grain_amount=(params.get(Params::GrainAmount)?.as_float_slider()?.value() as f32)*0.01;
+    f!(grain_size_px,Params::GrainSize);
+    p.grain_color=(params.get(Params::GrainColor)?.as_float_slider()?.value() as f32)*0.01;
+    p.grain_animate=params.get(Params::GrainAnimate)?.as_checkbox()?.value() as u32;
     f!(diffusion_blur_px,Params::DiffBlur); let cx=params.get(Params::DiffCenterX)?.as_float_slider()?.value() as f32; let cy=params.get(Params::DiffCenterY)?.as_float_slider()?.value() as f32; p.diffusion_center=Point2{x:cx*0.01,y:cy*0.01};
     f!(diffusion_focus_px,Params::DiffFocus); f!(diffusion_feather_px,Params::DiffFeather); p.diffusion_invert=params.get(Params::DiffInvert)?.as_checkbox()?.value() as u32;
     let engine=params.get(Params::Engine)?.as_popup()?.value();
@@ -233,16 +244,16 @@ impl AdobePluginGlobal for Plugin {
         slider!(Params::Cycles,"Cycles",0.1,20.0,0.1,5.0,1.0,2,8);
         percent_slider!(Params::Offset,"Offset",-100.0,100.0,-100.0,100.0,0.0,1,9);
         add_id(params,Params::Phase,"Phase",ae::AngleDef::setup(|x|{x.set_default(0.0);x.set_value(x.default());}),10)?;
-        slider!(Params::Saturation,"Saturation",0.0,2.0,0.0,2.0,1.0,2,11); slider!(Params::Brightness,"Brightness",0.0,4.0,0.0,2.0,1.0,2,12);
+        percent_slider!(Params::Saturation,"Saturation",0.0,200.0,0.0,200.0,100.0,1,11); percent_slider!(Params::Brightness,"Brightness",0.0,400.0,0.0,200.0,100.0,1,12);
         add_group(params,Params::DepthTopic,"Depth",13,true,true)?;
         percent_slider!(Params::Contrast,"Contrast",0.0,400.0,0.0,200.0,100.0,1,14);
         percent_slider!(Params::Bulge,"Bulge",-200.0,200.0,-100.0,100.0,60.0,1,15);
         percent_slider!(Params::Rounding,"Rounding",0.0,100.0,0.0,100.0,100.0,1,16);
         add_group(params,Params::DepthEnd,"",17,false,false)?;
-        add_group(params,Params::TurbTopic,"Turbulence",18,true,true)?; slider!(Params::TurbAmount,"Amount",0.0,2.0,0.0,1.0,0.0,2,19); slider!(Params::TurbSizeX,"Size X",1.0,2000.0,1.0,500.0,120.0,1,20); slider!(Params::TurbSizeY,"Size Y",1.0,2000.0,1.0,500.0,120.0,1,21); slider!(Params::TurbEvolution,"Evolution",-100000.0,100000.0,-360.0,360.0,0.0,2,22); slider!(Params::TurbSoftness,"Softness",0.0,1.0,0.0,1.0,0.5,2,23); add_group(params,Params::TurbEnd,"",24,false,false)?;
-        add_group(params,Params::LookTopic,"Look",25,true,true)?; add_group(params,Params::GlowTopic,"Glow",26,true,true)?; slider!(Params::GlowRadius,"Radius",0.0,2000.0,0.0,500.0,60.0,1,27); slider!(Params::GlowFalloff,"Falloff",0.25,4.0,0.25,4.0,1.6,2,28); slider!(Params::GlowThreshold,"Threshold",0.0,1.0,0.0,1.0,0.2,2,29); slider!(Params::GlowIntensity,"Intensity",0.0,10.0,0.0,3.0,0.8,2,30); slider!(Params::GlowSoftClip,"Soft Clip",0.0,1.0,0.0,1.0,0.25,2,31); add_group(params,Params::GlowEnd,"",32,false,false)?;
-        add_group(params,Params::GrainTopic,"Grain",33,true,true)?; slider!(Params::GrainAmount,"Amount",0.0,0.5,0.0,0.15,0.03,3,34); slider!(Params::GrainSize,"Size",0.5,16.0,0.5,8.0,1.0,2,35); slider!(Params::GrainColor,"Color",0.0,1.0,0.0,1.0,0.0,2,36); add_id(params,Params::GrainAnimate,"Animate",ae::CheckBoxDef::setup(|x|{x.set_default(true);x.set_value(true);}),37)?; add_group(params,Params::GrainEnd,"",38,false,false)?;
-        add_group(params,Params::DiffTopic,"Optical Diffusion",39,true,true)?; slider!(Params::DiffBlur,"Blur",0.0,2000.0,0.0,500.0,0.0,1,40); slider!(Params::DiffCenterX,"Center X",0.0,100.0,0.0,100.0,50.0,1,41); slider!(Params::DiffCenterY,"Center Y",0.0,100.0,0.0,100.0,50.0,1,42); slider!(Params::DiffFocus,"Focus",0.0,4000.0,0.0,1000.0,120.0,1,43); slider!(Params::DiffFeather,"Feather",0.0,4000.0,0.0,1000.0,200.0,1,44); add_id(params,Params::DiffInvert,"Invert",ae::CheckBoxDef::setup(|x|{x.set_default(false);x.set_value(false);}),45)?; add_group(params,Params::DiffEnd,"",46,false,false)?; add_group(params,Params::LookEnd,"",47,false,false)?;
+        add_group(params,Params::TurbTopic,"Turbulence",18,true,true)?; slider!(Params::TurbAmount,"Amount",0.0,500.0,0.0,200.0,40.0,1,19); slider!(Params::TurbSizeX,"Size X",0.1,50.0,0.1,10.0,3.0,2,20); slider!(Params::TurbSizeY,"Size Y",0.1,50.0,0.1,10.0,3.0,2,21); add_id(params,Params::TurbEvolution,"Evolution",ae::AngleDef::setup(|x|{x.set_default(0.0);x.set_value(x.default());}),22)?; slider!(Params::TurbSoftness,"Softness",0.0,1000.0,0.0,200.0,40.0,1,23); add_group(params,Params::TurbEnd,"",24,false,false)?;
+        add_group(params,Params::LookTopic,"Look",25,true,true)?; add_group(params,Params::GlowTopic,"Glow",26,true,true)?; slider!(Params::GlowRadius,"Radius",0.0,2000.0,0.0,600.0,194.0,1,27); percent_slider!(Params::GlowFalloff,"Falloff",0.0,100.0,0.0,100.0,50.0,1,28); percent_slider!(Params::GlowThreshold,"Threshold",0.0,100.0,0.0,100.0,0.0,1,29); percent_slider!(Params::GlowIntensity,"Intensity",0.0,400.0,0.0,200.0,160.0,1,30); percent_slider!(Params::GlowSoftClip,"Soft Clip",0.0,100.0,0.0,100.0,0.0,1,31); add_group(params,Params::GlowEnd,"",32,false,false)?;
+        add_group(params,Params::GrainTopic,"Grain",33,true,true)?; percent_slider!(Params::GrainAmount,"Amount",0.0,200.0,0.0,200.0,20.0,1,34); slider!(Params::GrainSize,"Size",0.3,5.0,0.3,3.0,1.0,2,35); percent_slider!(Params::GrainColor,"Color",0.0,100.0,0.0,100.0,100.0,1,36); add_id(params,Params::GrainAnimate,"Animate",ae::CheckBoxDef::setup(|x|{x.set_default(true);x.set_value(true);}),37)?; add_group(params,Params::GrainEnd,"",38,false,false)?;
+        add_group(params,Params::DiffTopic,"Optical Diffusion",39,true,true)?; slider!(Params::DiffBlur,"Blur",0.0,2000.0,0.0,500.0,15.0,1,40); slider!(Params::DiffCenterX,"Center X",0.0,100.0,0.0,100.0,50.0,1,41); slider!(Params::DiffCenterY,"Center Y",0.0,100.0,0.0,100.0,50.0,1,42); slider!(Params::DiffFocus,"Focus",0.0,4000.0,0.0,1000.0,50.0,1,43); slider!(Params::DiffFeather,"Feather",0.0,4000.0,0.0,1000.0,450.0,1,44); add_id(params,Params::DiffInvert,"Invert",ae::CheckBoxDef::setup(|x|{x.set_default(false);x.set_value(false);}),45)?; add_group(params,Params::DiffEnd,"",46,false,false)?; add_group(params,Params::LookEnd,"",47,false,false)?;
         add_id(params,Params::Engine,"Render Engine",ae::PopupDef::setup(|x|{x.set_options(&["Auto","GPU","CPU"]);x.set_default(1);x.set_value(1);}),48)?;
         add_id(params,Params::Quality,"Quality",ae::PopupDef::setup(|x|{x.set_options(&["Preview","Auto","Final"]);x.set_default(2);x.set_value(2);}),49)?;
         Ok(())
@@ -250,7 +261,7 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.8.9\rCosmic-matched palette controls + collapsed groups + Metal + CPU SmartFX"),
+            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.0\rCosmic-matched controls/defaults + Metal + CPU SmartFX"),
             ae::Command::UserChangedParam { param_index } => {
                 match params.type_at(param_index) {
                     Params::Presets => {

@@ -26,30 +26,30 @@ struct Params {
     float brightness = 1.0f;
 
     float depth_contrast = 1.0f;
-    float bulge = 0.0f;
-    float rounding = 0.0f;
+    float bulge = 0.6f;
+    float rounding = 1.0f;
 
-    float turbulence_amount = 0.0f;
-    float turbulence_size_x = 120.0f;
-    float turbulence_size_y = 120.0f;
+    float turbulence_amount = 0.4f;
+    float turbulence_size_x = 3.0f;
+    float turbulence_size_y = 3.0f;
     float turbulence_evolution = 0.0f;
-    float turbulence_softness = 0.5f;
+    float turbulence_softness = 0.4f;
 
-    float glow_radius_px = 60.0f;
-    float glow_falloff = 1.6f;
-    float glow_threshold = 0.2f;
-    float glow_intensity = 0.8f;
-    float glow_soft_clip = 0.25f;
+    float glow_radius_px = 194.0f;
+    float glow_falloff = 0.5f;
+    float glow_threshold = 0.0f;
+    float glow_intensity = 1.6f;
+    float glow_soft_clip = 0.0f;
 
-    float grain_amount = 0.03f;
+    float grain_amount = 0.2f;
     float grain_size_px = 1.0f;
-    float grain_color = 0.0f; // 0=mono, 1=fully chromatic
+    float grain_color = 1.0f; // 0=mono, 1=fully chromatic
     bool grain_animate = true;
 
-    float diffusion_blur_px = 0.0f;
+    float diffusion_blur_px = 15.0f;
     Point2f diffusion_center{0.5f, 0.5f};
-    float diffusion_focus_px = 120.0f;
-    float diffusion_feather_px = 200.0f;
+    float diffusion_focus_px = 50.0f;
+    float diffusion_feather_px = 450.0f;
     bool diffusion_invert = false;
 
     Quality quality = Quality::Auto;

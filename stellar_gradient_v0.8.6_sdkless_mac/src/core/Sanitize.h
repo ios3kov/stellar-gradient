@@ -40,20 +40,20 @@ inline Params sanitized_params(const Params& in) {
     p.bulge = finite_clamp(p.bulge, -2.0f, 2.0f, defaults.bulge);
     p.rounding = finite_clamp(p.rounding, 0.0f, 1.0f, defaults.rounding);
 
-    p.turbulence_amount = finite_clamp(p.turbulence_amount, 0.0f, 2.0f, defaults.turbulence_amount);
-    p.turbulence_size_x = finite_clamp(p.turbulence_size_x, 1.0f, 2000.0f, defaults.turbulence_size_x);
-    p.turbulence_size_y = finite_clamp(p.turbulence_size_y, 1.0f, 2000.0f, defaults.turbulence_size_y);
+    p.turbulence_amount = finite_clamp(p.turbulence_amount, 0.0f, 5.0f, defaults.turbulence_amount);
+    p.turbulence_size_x = finite_clamp(p.turbulence_size_x, 0.1f, 50.0f, defaults.turbulence_size_x);
+    p.turbulence_size_y = finite_clamp(p.turbulence_size_y, 0.1f, 50.0f, defaults.turbulence_size_y);
     p.turbulence_evolution = finite_clamp(p.turbulence_evolution, -100000.0f, 100000.0f, defaults.turbulence_evolution);
-    p.turbulence_softness = finite_clamp(p.turbulence_softness, 0.0f, 1.0f, defaults.turbulence_softness);
+    p.turbulence_softness = finite_clamp(p.turbulence_softness, 0.0f, 10.0f, defaults.turbulence_softness);
 
     p.glow_radius_px = finite_clamp(p.glow_radius_px, 0.0f, 2000.0f, defaults.glow_radius_px);
-    p.glow_falloff = finite_clamp(p.glow_falloff, 0.25f, 4.0f, defaults.glow_falloff);
+    p.glow_falloff = finite_clamp(p.glow_falloff, 0.0f, 1.0f, defaults.glow_falloff);
     p.glow_threshold = finite_clamp(p.glow_threshold, 0.0f, 1.0f, defaults.glow_threshold);
-    p.glow_intensity = finite_clamp(p.glow_intensity, 0.0f, 10.0f, defaults.glow_intensity);
+    p.glow_intensity = finite_clamp(p.glow_intensity, 0.0f, 4.0f, defaults.glow_intensity);
     p.glow_soft_clip = finite_clamp(p.glow_soft_clip, 0.0f, 1.0f, defaults.glow_soft_clip);
 
-    p.grain_amount = finite_clamp(p.grain_amount, 0.0f, 0.5f, defaults.grain_amount);
-    p.grain_size_px = finite_clamp(p.grain_size_px, 0.5f, 16.0f, defaults.grain_size_px);
+    p.grain_amount = finite_clamp(p.grain_amount, 0.0f, 2.0f, defaults.grain_amount);
+    p.grain_size_px = finite_clamp(p.grain_size_px, 0.3f, 5.0f, defaults.grain_size_px);
     p.grain_color = finite_clamp(p.grain_color, 0.0f, 1.0f, defaults.grain_color);
 
     p.diffusion_blur_px = finite_clamp(p.diffusion_blur_px, 0.0f, 2000.0f, defaults.diffusion_blur_px);

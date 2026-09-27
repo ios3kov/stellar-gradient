@@ -199,3 +199,16 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - Manual color edits switch the menu to Custom.
 - Palette remains expanded by default; Depth, Turbulence, Look and all nested Look groups are collapsed by default.
 - Render core and Metal shader math are unchanged.
+
+
+### Cosmic full control defaults — v0.9.0
+
+- Re-disassembled the supplied Cosmic.aex down to its PARAMS_SETUP and USER_CHANGED_PARAM paths.
+- Corrected Stellar's shared non-color default state and UI ranges to the values encoded by the supplied binary.
+- Saturation/Brightness now use Cosmic-style percentage controls and host normalization.
+- Turbulence now starts at Amount 40, Size X/Y 3.0, Evolution 0°, Softness 40; Evolution is a native AE Angle control.
+- Glow now starts at Radius 194, Falloff 50%, Threshold 0%, Intensity 160%, Soft Clip 0%.
+- Grain now starts at Amount 20%, Size 1.0, Color 100%, Animate On.
+- Optical Diffusion now starts at Blur 15, Center 50/50, Focus 50, Feather 450, Invert Off.
+- Depth remains Contrast 100%, Bulge 60%, Rounding 100%; Palette is the only expanded group by default.
+- The supplied Cosmic.aex built-in Colors handler writes Color 1..5; the non-color settings above are its shared effect defaults, so matching both pieces is required for visual preset parity.
