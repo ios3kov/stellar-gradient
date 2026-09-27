@@ -356,24 +356,39 @@ int LoadImplementationFromSourceLocked(
     }
 
     char key_buffer[256]{};
-    if (key_fn(key_buffer, sizeof(key_buffer)) != 0 ||
-        std::strcmp(key_buffer, kImplementationKey) != 0) {
+    const int key_result = key_fn(key_buffer, sizeof(key_buffer));
+    const auto* key_terminator = static_cast<const char*>(
+        std::memchr(key_buffer, '\0', sizeof(key_buffer)));
+    if (key_result != 0 || !key_terminator) {
+        if (detail) {
+            *detail = "Implementation key is invalid or not NUL-terminated.";
+        }
+        RetainRejectedCandidate(handle, runtime_path);
+        return -4111;
+    }
+    if (std::strcmp(key_buffer, kImplementationKey) != 0) {
         if (detail) {
             *detail = std::string("Implementation key mismatch: expected ") +
-                      kImplementationKey + ", got " +
-                      (key_buffer[0] ? key_buffer : "(invalid)");
+                      kImplementationKey + ", got " + key_buffer;
         }
         RetainRejectedCandidate(handle, runtime_path);
         return -4111;
     }
 
     char label_buffer[256]{};
-    if (label_fn(label_buffer, sizeof(label_buffer)) != 0 || label_buffer[0] == '\0') {
-        if (detail) *detail = "Implementation label is invalid.";
+    const int label_result = label_fn(label_buffer, sizeof(label_buffer));
+    const auto* label_terminator = static_cast<const char*>(
+        std::memchr(label_buffer, '\0', sizeof(label_buffer)));
+    if (label_result != 0 || !label_terminator || label_buffer[0] == '\0') {
+        if (detail) {
+            *detail = "Implementation label is invalid or not NUL-terminated.";
+        }
         RetainRejectedCandidate(handle, runtime_path);
         return -4113;
     }
-    const std::string implementation_label(label_buffer);
+    const std::string implementation_label(
+        label_buffer,
+        static_cast<std::size_t>(label_terminator - label_buffer));
 
     // Quiescent swap: let already-running MFR/render calls finish and prevent
     // a mix of old/new implementation code from touching the same AE state.
