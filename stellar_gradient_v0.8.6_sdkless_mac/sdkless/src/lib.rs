@@ -27,7 +27,7 @@ struct RectC { left: i32, top: i32, right: i32, bottom: i32 }
 struct ParamsC {
     colors: [Color3; 5],
     angle_deg: f32, cycles: f32, offset: f32, phase_deg: f32, saturation: f32, brightness: f32,
-    depth_contrast: f32, bulge: f32, rounding: f32,
+    depth_angle_deg: f32, depth_contrast: f32, bulge: f32, rounding: f32,
     turbulence_amount: f32, turbulence_size_x: f32, turbulence_size_y: f32, turbulence_evolution: f32, turbulence_softness: f32,
     glow_radius_px: f32, glow_falloff: f32, glow_threshold: f32, glow_intensity: f32, glow_soft_clip: f32,
     grain_amount: f32, grain_size_px: f32, grain_color: f32, grain_animate: u32,
@@ -38,7 +38,7 @@ impl Default for ParamsC {
     fn default() -> Self {
         Self {
             colors: [Color3::default(); 5], angle_deg: 90.0, cycles: 1.0, offset: 0.0, phase_deg: 0.0,
-            saturation: 1.0, brightness: 1.0, depth_contrast: 1.0, bulge: 0.6, rounding: 1.0,
+            saturation: 1.0, brightness: 1.0, depth_angle_deg: 0.0, depth_contrast: 1.0, bulge: 0.6, rounding: 1.0,
             turbulence_amount: 0.4, turbulence_size_x: 3.0, turbulence_size_y: 3.0, turbulence_evolution: 0.0, turbulence_softness: 0.4,
             glow_radius_px: 194.0, glow_falloff: 0.5, glow_threshold: 0.0, glow_intensity: 1.6, glow_soft_clip: 0.0,
             grain_amount: 0.2, grain_size_px: 1.0, grain_color: 1.0, grain_animate: 1,
@@ -91,7 +91,7 @@ enum Params {
     GrainTopic = 33, GrainAmount = 34, GrainSize = 35, GrainColor = 36, GrainAnimate = 37, GrainEnd = 38,
     DiffTopic = 39, DiffBlur = 40, DiffCenterX = 41, DiffCenterY = 42, DiffFocus = 43, DiffFeather = 44, DiffInvert = 45, DiffEnd = 46,
     LookEnd = 47, Engine = 48, Quality = 49,
-    PaletteTopic = 50, PaletteEnd = 51, DiffCenter = 52,
+    PaletteTopic = 50, PaletteEnd = 51, DiffCenter = 52, DepthAngle = 53,
 }
 
 #[derive(Default)]
@@ -184,6 +184,7 @@ fn apply_cosmic_preset(params: &mut ae::Parameters<Params>, which: i32, layer_wi
     set_angle_param(params, Params::Phase, 0.0)?;
     set_float_param(params, Params::Saturation, 100.0)?;
     set_float_param(params, Params::Brightness, 100.0)?;
+    set_angle_param(params, Params::DepthAngle, 0.0)?;
     set_float_param(params, Params::Contrast, 100.0)?;
     set_float_param(params, Params::Bulge, 60.0)?;
     set_float_param(params, Params::Rounding, 100.0)?;
@@ -235,6 +236,7 @@ fn gather_params(params: &mut ae::Parameters<Params>, layer_width: f32, layer_he
     p.phase_deg=params.get(Params::Phase)?.as_angle()?.float_value()? as f32;
     p.saturation=(params.get(Params::Saturation)?.as_float_slider()?.value() as f32)*0.01;
     p.brightness=(params.get(Params::Brightness)?.as_float_slider()?.value() as f32)*0.01;
+    p.depth_angle_deg=params.get(Params::DepthAngle)?.as_angle()?.float_value()? as f32;
     p.depth_contrast=(params.get(Params::Contrast)?.as_float_slider()?.value() as f32)*0.01;
     p.bulge=(params.get(Params::Bulge)?.as_float_slider()?.value() as f32)*0.01;
     p.rounding=(params.get(Params::Rounding)?.as_float_slider()?.value() as f32)*0.01;
@@ -317,6 +319,7 @@ impl AdobePluginGlobal for Plugin {
         percent_slider!(Params::Saturation,"Saturation",0.0,200.0,0.0,200.0,100.0,1,11); percent_slider!(Params::Brightness,"Brightness",0.0,400.0,0.0,200.0,100.0,1,12);
         add_group(params,Params::PaletteEnd,"",51,false,false)?;
         add_group(params,Params::DepthTopic,"Depth",13,true,true)?;
+        add_id(params,Params::DepthAngle,"Angle",ae::AngleDef::setup(|x|{x.set_default(0.0);x.set_value(x.default());}),53)?;
         percent_slider!(Params::Contrast,"Contrast",0.0,400.0,0.0,200.0,100.0,1,14);
         percent_slider!(Params::Bulge,"Bulge",-200.0,200.0,-100.0,100.0,60.0,1,15);
         percent_slider!(Params::Rounding,"Rounding",0.0,100.0,0.0,100.0,100.0,1,16);
@@ -340,7 +343,7 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.2\rNative Cosmic Center + full preset state + Metal + CPU SmartFX"),
+            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.3\rCosmic directional Depth + native Center + Metal + CPU SmartFX"),
             ae::Command::UserChangedParam { param_index } => {
                 match params.type_at(param_index) {
                     Params::Presets => {
@@ -350,7 +353,7 @@ impl AdobePluginGlobal for Plugin {
                     }
                     Params::Color1 | Params::Color2 | Params::Color3 | Params::Color4 | Params::Color5 |
                     Params::Angle | Params::Cycles | Params::Offset | Params::Phase | Params::Saturation | Params::Brightness |
-                    Params::Contrast | Params::Bulge | Params::Rounding |
+                    Params::DepthAngle | Params::Contrast | Params::Bulge | Params::Rounding |
                     Params::TurbAmount | Params::TurbSizeX | Params::TurbSizeY | Params::TurbEvolution | Params::TurbSoftness |
                     Params::GlowRadius | Params::GlowFalloff | Params::GlowThreshold | Params::GlowIntensity | Params::GlowSoftClip |
                     Params::GrainAmount | Params::GrainSize | Params::GrainColor | Params::GrainAnimate |
@@ -475,13 +478,13 @@ mod tests {
         assert_eq!(std::mem::size_of::<Color3>(), 12);
         assert_eq!(std::mem::size_of::<Point2>(), 8);
         assert_eq!(std::mem::size_of::<RectC>(), 16);
-        assert_eq!(std::mem::size_of::<ParamsC>(), 180);
+        assert_eq!(std::mem::size_of::<ParamsC>(), 184);
         assert_eq!(std::mem::align_of::<ParamsC>(), 4);
-        assert_eq!(std::mem::offset_of!(ParamsC, diffusion_center), 156);
-        assert_eq!(std::mem::offset_of!(ParamsC, quality), 176);
+        assert_eq!(std::mem::offset_of!(ParamsC, diffusion_center), 160);
+        assert_eq!(std::mem::offset_of!(ParamsC, quality), 180);
         assert_eq!(std::mem::size_of::<RenderStateC>(), 264);
         assert_eq!(std::mem::align_of::<RenderStateC>(), 8);
-        assert_eq!(std::mem::offset_of!(RenderStateC, input_rect), 180);
+        assert_eq!(std::mem::offset_of!(RenderStateC, input_rect), 184);
         assert_eq!(std::mem::offset_of!(RenderStateC, time_seconds), 248);
         assert_eq!(std::mem::offset_of!(RenderStateC, engine_mode), 260);
     }

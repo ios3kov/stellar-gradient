@@ -236,3 +236,12 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - Center defaults to 50/50 and is normalized against the source layer dimensions for the render core.
 - Legacy Center X/Y IDs 41/42 remain present but invisible; the new Point uses ID 52.
 - Full preset application resets Center to the actual layer center.
+
+
+### Cosmic directional Depth — v0.9.3
+
+- Extracted the CUDA PTX embedded in the supplied Cosmic.aex and recovered CosmicDepthKernel.
+- Added native Depth > Angle (ID 53, default 0°) without renumbering existing parameters.
+- Replaced the old radial dome with the recovered directional depth ramp on CPU and Metal: Angle -> cos/sin, Contrast shapes the mask, Bulge offsets the gradient coordinate.
+- CPU and Metal use the same equation.
+- Rounding is currently a fused continuous smoothing approximation. Cosmic applies it as a separate blur of the depth map; exact Rounding blur parity remains the next Depth item.

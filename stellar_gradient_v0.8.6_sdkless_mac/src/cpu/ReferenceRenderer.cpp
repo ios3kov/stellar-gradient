@@ -68,7 +68,10 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
     const std::uint32_t seed = q.grain_animate ? frame_index * 1664525u + 1013904223u : 0x12345678u;
     const bool depth_active = std::abs(q.bulge) > 1.0e-6f;
     const float rounding = clamp01(q.rounding);
-    const float depth_exp = std::max(0.05f, q.depth_contrast);
+    const float depth_a = q.depth_angle_deg * 3.14159265358979323846f / 180.0f;
+    const float depth_dir_x = std::cos(depth_a);
+    const float depth_dir_y = std::sin(depth_a);
+    const float depth_inv_diag = 1.0f / std::max(1.0f, 0.5f * std::sqrt(bw * bw + bh * bh));
     const float turbulence_sx = std::max(1.0f, q.turbulence_size_x);
     const float turbulence_sy = std::max(1.0f, q.turbulence_size_y);
     const float turbulence_evo_x = q.turbulence_evolution * 0.013f;
@@ -107,11 +110,15 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                 }
 
                 if (depth_active) {
-                    const float r2 = nx * nx + ny * ny;
-                    float dome = clamp01(1.0f - r2 * 4.0f);
-                    dome = lerp(dome, smooth01(dome), rounding);
-                    dome = std::pow(std::max(dome, 1e-6f), depth_exp);
-                    u += (dome - 0.5f) * q.bulge;
+                    const float dx = static_cast<float>(x) - cx;
+                    const float dy = static_cast<float>(y) - cy;
+                    float ramp = clamp01(0.5f + 0.5f * (dx * depth_dir_x + dy * depth_dir_y) * depth_inv_diag);
+                    ramp = lerp(ramp, smooth01(ramp), rounding);
+                    float depth = alpha * ramp;
+                    if (alpha > 0.0f && std::abs(q.depth_contrast - 1.0f) > 1.0e-3f) {
+                        depth = alpha * clamp01((depth - 0.5f) * q.depth_contrast + 0.5f);
+                    }
+                    u += depth * q.bulge;
                 }
 
                 Color3f c = adjust_sat_brightness(sample_palette(q.colors, u), q.saturation, q.brightness);

@@ -31,17 +31,17 @@ struct ParamsGPU {
     // Frame-constant values precomputed on CPU. Keeping transcendental math
     // out of the per-pixel Metal path is both faster and improves CPU/GPU parity.
     float dir_x, dir_y, inv_bw, inv_bh;
-    float bound_cx, bound_cy, phase_offset, depth_exp;
-    float rounding_clamped, turbulence_inv_x, turbulence_inv_y, turbulence_evo_x;
-    float turbulence_evo_y, grain_inv_size, glow_lod, glow_spread;
-    float glow_threshold_inv, diffusion_lod, diffusion_cx, diffusion_cy;
-    float diffusion_inv_feather;
+    float bound_cx, bound_cy, phase_offset, depth_inv_diag;
+    float depth_dir_x, depth_dir_y, rounding_clamped, turbulence_inv_x;
+    float turbulence_inv_y, turbulence_evo_x, turbulence_evo_y, grain_inv_size;
+    float glow_lod, glow_spread, glow_threshold_inv, diffusion_lod;
+    float diffusion_cx, diffusion_cy, diffusion_inv_feather;
     std::uint32_t depth_enabled;
 };
 
 static_assert(sizeof(Color3GPU) == 12, "GPU color layout changed");
 static_assert(std::is_standard_layout<ParamsGPU>::value, "GPU params must stay standard-layout");
-static_assert(sizeof(ParamsGPU) == 344, "GPU params ABI changed");
+static_assert(sizeof(ParamsGPU) == 352, "GPU params ABI changed");
 static_assert(offsetof(ParamsGPU, angle_rad) == 60, "GPU params ABI changed");
 static_assert(offsetof(ParamsGPU, grain_seed) == 128, "GPU params ABI changed");
 static_assert(offsetof(ParamsGPU, glow_radius) == 132, "GPU params ABI changed");

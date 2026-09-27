@@ -36,7 +36,8 @@ inline Params sanitized_params(const Params& in) {
     p.saturation = finite_clamp(p.saturation, 0.0f, 2.0f, defaults.saturation);
     p.brightness = finite_clamp(p.brightness, 0.0f, 4.0f, defaults.brightness);
 
-    p.depth_contrast = finite_clamp(p.depth_contrast, 0.05f, 8.0f, defaults.depth_contrast);
+    p.depth_angle_deg = finite_clamp(p.depth_angle_deg, -100000.0f, 100000.0f, defaults.depth_angle_deg);
+    p.depth_contrast = finite_clamp(p.depth_contrast, 0.0f, 4.0f, defaults.depth_contrast);
     p.bulge = finite_clamp(p.bulge, -2.0f, 2.0f, defaults.bulge);
     p.rounding = finite_clamp(p.rounding, 0.0f, 1.0f, defaults.rounding);
 

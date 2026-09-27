@@ -25,6 +25,7 @@ struct Params {
     float saturation = 1.0f;
     float brightness = 1.0f;
 
+    float depth_angle_deg = 0.0f;
     float depth_contrast = 1.0f;
     float bulge = 0.6f;
     float rounding = 1.0f;

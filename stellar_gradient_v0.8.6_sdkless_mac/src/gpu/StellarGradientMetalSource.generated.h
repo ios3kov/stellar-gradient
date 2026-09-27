@@ -23,11 +23,11 @@ struct SGParamsGPU {
     int origin_x, origin_y;
     int min_x,min_y,max_x,max_y;
     float dir_x,dir_y,inv_bw,inv_bh;
-    float bound_cx,bound_cy,phase_offset,depth_exp;
-    float rounding_clamped,turbulence_inv_x,turbulence_inv_y,turbulence_evo_x;
-    float turbulence_evo_y,grain_inv_size,glow_lod,glow_spread;
-    float glow_threshold_inv,diffusion_lod,diffusion_cx,diffusion_cy;
-    float diffusion_inv_feather;
+    float bound_cx,bound_cy,phase_offset,depth_inv_diag;
+    float depth_dir_x,depth_dir_y,rounding_clamped,turbulence_inv_x;
+    float turbulence_inv_y,turbulence_evo_x,turbulence_evo_y,grain_inv_size;
+    float glow_lod,glow_spread,glow_threshold_inv,diffusion_lod;
+    float diffusion_cx,diffusion_cy,diffusion_inv_feather;
     uint depth_enabled;
 };
 
@@ -53,7 +53,14 @@ inline float4 shade_base(device const float4* src, constant SGParamsGPU& p, uint
     float u=(nx*p.dir_x+ny*p.dir_y)*p.cycles+p.phase_offset;
     float2 layer_pos=float2(int(gid.x)+p.origin_x,int(gid.y)+p.origin_y);
     if(p.turbulence_amount!=0){u+=fbm(layer_pos.x*p.turbulence_inv_x+p.turbulence_evo_x,layer_pos.y*p.turbulence_inv_y+p.turbulence_evo_y,p.turbulence_softness,0x6d2b79f5u)*p.turbulence_amount;}
-    if(p.depth_enabled!=0u){ float dome=clamp01(1.0f-(nx*nx+ny*ny)*4.0f); dome=mix(dome,sm(dome),p.rounding_clamped); dome=pow(max(dome,1e-6f),p.depth_exp); u+=(dome-.5f)*p.bulge; }
+    if(p.depth_enabled!=0u){
+        float dx=float(gid.x)-p.bound_cx,dy=float(gid.y)-p.bound_cy;
+        float ramp=clamp01(0.5f+0.5f*(dx*p.depth_dir_x+dy*p.depth_dir_y)*p.depth_inv_diag);
+        ramp=mix(ramp,sm(ramp),p.rounding_clamped);
+        float depth=alpha*ramp;
+        if(alpha>0.0f && abs(p.depth_contrast-1.0f)>1.0e-3f) depth=alpha*clamp01((depth-0.5f)*p.depth_contrast+0.5f);
+        u+=depth*p.bulge;
+    }
     float3 c=palette(p,u);
     if(p.grain_amount>0){uint gx=uint(int(floor(layer_pos.x*p.grain_inv_size))),gy=uint(int(floor(layer_pos.y*p.grain_inv_size)));uint h=h32(p.grain_seed ^ gx*73856093u ^ gy*19349663u);float mono=(h01(h)-.5f)*2.0f*p.grain_amount;float3 chr=float3(h01(h^0x68bc21ebu),h01(h^0x02e5be93u),h01(h^0x967a889bu));chr=(chr-.5f)*2.0f*p.grain_amount;c+=mix(float3(mono),chr,p.grain_color);}
     return float4(c*alpha,alpha);

@@ -18,6 +18,7 @@ typedef struct SGParamsC {
     float phase_deg;
     float saturation;
     float brightness;
+    float depth_angle_deg;
     float depth_contrast;
     float bulge;
     float rounding;
@@ -58,13 +59,13 @@ typedef struct SGRenderStateC {
 static_assert(sizeof(SGColor3C) == 12, "SGColor3C ABI changed");
 static_assert(sizeof(SGPoint2C) == 8, "SGPoint2C ABI changed");
 static_assert(sizeof(SGRectC) == 16, "SGRectC ABI changed");
-static_assert(sizeof(SGParamsC) == 180, "SGParamsC ABI changed");
+static_assert(sizeof(SGParamsC) == 184, "SGParamsC ABI changed");
 static_assert(alignof(SGParamsC) == 4, "SGParamsC alignment changed");
 static_assert(sizeof(SGRenderStateC) == 264, "SGRenderStateC ABI changed");
 static_assert(alignof(SGRenderStateC) == 8, "SGRenderStateC alignment changed");
-static_assert(offsetof(SGParamsC, diffusion_center) == 156, "SGParamsC ABI changed");
-static_assert(offsetof(SGParamsC, quality) == 176, "SGParamsC ABI changed");
-static_assert(offsetof(SGRenderStateC, input_rect) == 180, "SGRenderStateC ABI changed");
+static_assert(offsetof(SGParamsC, diffusion_center) == 160, "SGParamsC ABI changed");
+static_assert(offsetof(SGParamsC, quality) == 180, "SGParamsC ABI changed");
+static_assert(offsetof(SGRenderStateC, input_rect) == 184, "SGRenderStateC ABI changed");
 static_assert(offsetof(SGRenderStateC, time_seconds) == 248, "SGRenderStateC ABI changed");
 static_assert(offsetof(SGRenderStateC, engine_mode) == 260, "SGRenderStateC ABI changed");
 #endif

@@ -132,7 +132,7 @@ stellar::Params to_cpp_params(const SGParamsC& c) {
     for (int i=0;i<5;++i) p.colors[static_cast<std::size_t>(i)]={c.colors[i].r,c.colors[i].g,c.colors[i].b};
     p.angle_deg=c.angle_deg; p.cycles=c.cycles; p.offset=c.offset; p.phase_deg=c.phase_deg;
     p.saturation=c.saturation; p.brightness=c.brightness;
-    p.depth_contrast=c.depth_contrast; p.bulge=c.bulge; p.rounding=c.rounding;
+    p.depth_angle_deg=c.depth_angle_deg; p.depth_contrast=c.depth_contrast; p.bulge=c.bulge; p.rounding=c.rounding;
     p.turbulence_amount=c.turbulence_amount; p.turbulence_size_x=c.turbulence_size_x; p.turbulence_size_y=c.turbulence_size_y;
     p.turbulence_evolution=c.turbulence_evolution; p.turbulence_softness=c.turbulence_softness;
     p.glow_radius_px=c.glow_radius_px; p.glow_falloff=c.glow_falloff; p.glow_threshold=c.glow_threshold;
@@ -149,7 +149,7 @@ SGParamsC from_cpp_params(const stellar::Params& p) {
     for (int i=0;i<5;++i) c.colors[i]={p.colors[static_cast<std::size_t>(i)].r,p.colors[static_cast<std::size_t>(i)].g,p.colors[static_cast<std::size_t>(i)].b};
     c.angle_deg=p.angle_deg; c.cycles=p.cycles; c.offset=p.offset; c.phase_deg=p.phase_deg;
     c.saturation=p.saturation; c.brightness=p.brightness;
-    c.depth_contrast=p.depth_contrast; c.bulge=p.bulge; c.rounding=p.rounding;
+    c.depth_angle_deg=p.depth_angle_deg; c.depth_contrast=p.depth_contrast; c.bulge=p.bulge; c.rounding=p.rounding;
     c.turbulence_amount=p.turbulence_amount; c.turbulence_size_x=p.turbulence_size_x; c.turbulence_size_y=p.turbulence_size_y;
     c.turbulence_evolution=p.turbulence_evolution; c.turbulence_softness=p.turbulence_softness;
     c.glow_radius_px=p.glow_radius_px; c.glow_falloff=p.glow_falloff; c.glow_threshold=p.glow_threshold; c.glow_intensity=p.glow_intensity; c.glow_soft_clip=p.glow_soft_clip;
@@ -167,6 +167,8 @@ stellar::gpu::ParamsGPU pack_gpu(const SGRenderStateC& s, int work_w, int work_h
     q.angle_rad=p.angle_deg*3.14159265358979323846f/180.0f; q.cycles=p.cycles; q.offset=p.offset; q.phase=p.phase_deg/360.0f;
     q.saturation=p.saturation; q.brightness=p.brightness;
     q.depth_contrast=p.depth_contrast; q.bulge=p.bulge; q.rounding=p.rounding;
+    const float depth_a=p.depth_angle_deg*3.14159265358979323846f/180.0f;
+    q.depth_dir_x=std::cos(depth_a); q.depth_dir_y=std::sin(depth_a);
     q.turbulence_amount=p.turbulence_amount; q.turbulence_scale_x=p.turbulence_size_x; q.turbulence_scale_y=p.turbulence_size_y; q.turbulence_evolution=p.turbulence_evolution; q.turbulence_softness=p.turbulence_softness;
     q.grain_amount=p.grain_amount; q.grain_size=p.grain_size_px; q.grain_color=p.grain_color; q.grain_seed=p.grain_animate?s.frame_index*1664525u+1013904223u:0x12345678u;
     q.glow_radius=p.glow_radius_px; q.glow_falloff=p.glow_falloff; q.glow_threshold=p.glow_threshold; q.glow_intensity=p.glow_intensity; q.glow_soft_clip=p.glow_soft_clip;
@@ -181,7 +183,9 @@ stellar::gpu::ParamsGPU pack_gpu(const SGRenderStateC& s, int work_w, int work_h
     const float bw=static_cast<float>(std::max(1,q.max_x-q.min_x+1)); const float bh=static_cast<float>(std::max(1,q.max_y-q.min_y+1));
     q.dir_x=std::cos(q.angle_rad); q.dir_y=std::sin(q.angle_rad); q.inv_bw=1.0f/bw; q.inv_bh=1.0f/bh;
     q.bound_cx=0.5f*static_cast<float>(q.min_x+q.max_x); q.bound_cy=0.5f*static_cast<float>(q.min_y+q.max_y);
-    q.phase_offset=q.offset+q.phase; q.depth_exp=std::max(0.05f,q.depth_contrast); q.rounding_clamped=std::clamp(q.rounding,0.0f,1.0f);
+    q.phase_offset=q.offset+q.phase;
+    q.depth_inv_diag=1.0f/std::max(1.0f,0.5f*std::sqrt(bw*bw+bh*bh));
+    q.rounding_clamped=std::clamp(q.rounding,0.0f,1.0f);
     q.turbulence_inv_x=1.0f/std::max(1.0f,q.turbulence_scale_x); q.turbulence_inv_y=1.0f/std::max(1.0f,q.turbulence_scale_y);
     q.turbulence_evo_x=q.turbulence_evolution*0.013f; q.turbulence_evo_y=q.turbulence_evolution*0.017f;
     q.grain_inv_size=1.0f/std::max(0.5f,q.grain_size); q.glow_lod=plan.glow_lod; q.glow_spread=std::max(0.35f,0.45f*q.glow_falloff);
