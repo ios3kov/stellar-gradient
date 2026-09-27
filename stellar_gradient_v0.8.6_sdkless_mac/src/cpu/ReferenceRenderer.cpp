@@ -28,10 +28,53 @@ inline float soft_clip(float v, float soft) {
     return soft > 0.0f ? v / (1.0f + soft * std::max(0.0f, v - 1.0f)) : v;
 }
 
+void box_blur_h(const std::vector<float>& src, std::vector<float>& dst, int w, int h, int radius) {
+    if (radius <= 0) { dst = src; return; }
+    const int span = radius * 2 + 1;
+    dst.resize(src.size());
+    parallel_rows(0, h, [&](int y0, int y1) {
+        for (int y = y0; y < y1; ++y) {
+            const std::size_t row = static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
+            float sum = 0.0f;
+            for (int k = -radius; k <= radius; ++k) sum += src[row + static_cast<std::size_t>(std::clamp(k, 0, w - 1))];
+            for (int x = 0; x < w; ++x) {
+                dst[row + static_cast<std::size_t>(x)] = sum / static_cast<float>(span);
+                const int remove_x = std::clamp(x - radius, 0, w - 1);
+                const int add_x = std::clamp(x + radius + 1, 0, w - 1);
+                sum += src[row + static_cast<std::size_t>(add_x)] - src[row + static_cast<std::size_t>(remove_x)];
+            }
+        }
+    });
+}
+
+void box_blur_v(const std::vector<float>& src, std::vector<float>& dst, int w, int h, int radius) {
+    if (radius <= 0) { dst = src; return; }
+    const int span = radius * 2 + 1;
+    dst.resize(src.size());
+    parallel_rows(0, w, [&](int x0, int x1) {
+        for (int x = x0; x < x1; ++x) {
+            float sum = 0.0f;
+            for (int k = -radius; k <= radius; ++k) {
+                const int yy = std::clamp(k, 0, h - 1);
+                sum += src[static_cast<std::size_t>(yy) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)];
+            }
+            for (int y = 0; y < h; ++y) {
+                dst[static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)] = sum / static_cast<float>(span);
+                const int remove_y = std::clamp(y - radius, 0, h - 1);
+                const int add_y = std::clamp(y + radius + 1, 0, h - 1);
+                sum += src[static_cast<std::size_t>(add_y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)]
+                     - src[static_cast<std::size_t>(remove_y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)];
+            }
+        }
+    });
+}
+
 struct CpuRenderWorkspace {
     // Glow and diffusion never need their mip pyramids at the same time.
     // Reusing one pyramid cuts peak/retained scratch memory roughly in half.
     MipPyramidRGBA pyramid;
+    std::vector<float> depth_a;
+    std::vector<float> depth_b;
 };
 
 thread_local CpuRenderWorkspace g_workspace;
@@ -67,7 +110,7 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
     const float dir_y = std::sin(a);
     const std::uint32_t seed = q.grain_animate ? frame_index * 1664525u + 1013904223u : 0x12345678u;
     const bool depth_active = std::abs(q.bulge) > 1.0e-6f;
-    const float rounding = clamp01(q.rounding);
+    const float rounding = std::clamp(q.rounding, 0.0f, 4.0f);
     const float depth_a = q.depth_angle_deg * 3.14159265358979323846f / 180.0f;
     const float depth_dir_x = std::cos(depth_a);
     const float depth_dir_y = std::sin(depth_a);
@@ -79,6 +122,37 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
     const float grain_size = std::max(0.5f, q.grain_size_px);
     const float glow_threshold_inv = 1.0f / std::max(1e-5f, 1.0f - q.glow_threshold);
     const float glow_spread = std::max(0.35f, 0.45f * q.glow_falloff);
+
+    const float* depth_map = nullptr;
+    if (depth_active) {
+        const std::size_t pixels = static_cast<std::size_t>(img.width) * static_cast<std::size_t>(img.height);
+        g_workspace.depth_a.resize(pixels);
+        g_workspace.depth_b.resize(pixels);
+        parallel_rows(0, img.height, [&](int y0, int y1) {
+            for (int y = y0; y < y1; ++y) {
+                const float* src = img.src_rgba + static_cast<std::size_t>(y) * static_cast<std::size_t>(img.stride_floats);
+                for (int x = 0; x < img.width; ++x) {
+                    const float alpha = clamp01(src[x * 4 + 3]);
+                    const float dx = static_cast<float>(x) - cx;
+                    const float dy = static_cast<float>(y) - cy;
+                    const float ramp = clamp01(0.5f + 0.5f * (dx * depth_dir_x + dy * depth_dir_y) * depth_inv_diag);
+                    g_workspace.depth_a[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)] = alpha * ramp;
+                }
+            }
+        });
+
+        // Recovered from Cosmic.aex: sigma = min(width,height) * 0.125 * 0.7 * Rounding,
+        // then three separable H/V box passes with radius round(sigma/3), skipped at <=0.5.
+        const float sigma = static_cast<float>(std::min(img.width, img.height)) * 0.0875f * rounding;
+        const int radius = sigma > 0.5f ? std::max(1, static_cast<int>(std::lround(sigma / 3.0f))) : 0;
+        if (radius > 0) {
+            for (int pass = 0; pass < 3; ++pass) {
+                box_blur_h(g_workspace.depth_a, g_workspace.depth_b, img.width, img.height, radius);
+                box_blur_v(g_workspace.depth_b, g_workspace.depth_a, img.width, img.height, radius);
+            }
+        }
+        depth_map = g_workspace.depth_a.data();
+    }
 
     float* glow_source = nullptr;
     if (plan.glow) {
@@ -110,11 +184,7 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                 }
 
                 if (depth_active) {
-                    const float dx = static_cast<float>(x) - cx;
-                    const float dy = static_cast<float>(y) - cy;
-                    float ramp = clamp01(0.5f + 0.5f * (dx * depth_dir_x + dy * depth_dir_y) * depth_inv_diag);
-                    ramp = lerp(ramp, smooth01(ramp), rounding);
-                    float depth = alpha * ramp;
+                    float depth = depth_map[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)];
                     if (alpha > 0.0f && std::abs(q.depth_contrast - 1.0f) > 1.0e-3f) {
                         depth = alpha * clamp01((depth - 0.5f) * q.depth_contrast + 0.5f);
                     }
