@@ -285,7 +285,17 @@ int LoadImplementationFromSourceLocked(
     // Quiescent swap: let already-running MFR/render calls finish and prevent
     // a mix of old/new implementation code from touching the same AE state.
     {
-        std::unique_lock<std::shared_mutex> call_lock(g_call_gate);
+        std::unique_lock<std::shared_mutex> call_lock(g_call_gate, std::try_to_lock);
+        if (!call_lock.owns_lock()) {
+            dlclose(handle);
+            std::error_code remove_error;
+            std::filesystem::remove(runtime_path, remove_error);
+            if (detail) {
+                *detail = "Effect is busy with an in-flight call; retry Reload Plugins.";
+            }
+            return -4112;
+        }
+
         g_loaded_handles.push_back(handle);
         g_loaded_source = source;
         g_loaded_fingerprint = fingerprint;
