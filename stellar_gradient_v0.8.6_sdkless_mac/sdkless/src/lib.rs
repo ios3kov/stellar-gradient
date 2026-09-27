@@ -292,12 +292,12 @@ impl AdobePluginGlobal for Plugin {
             (Params::Color1,"Color 1",[40,13,140,255],2),(Params::Color2,"Color 2",[55,17,191,255],3),(Params::Color3,"Color 3",[24,14,89,255],4),
             (Params::Color4,"Color 4",[7,12,38,255],5),(Params::Color5,"Color 5",[242,75,75,255],6)
         ] { add_supervised_id(params,key,name,ae::ColorDef::setup(|x|{let c=ae::Pixel8{red:rgba[0],green:rgba[1],blue:rgba[2],alpha:rgba[3]};x.set_default(c);x.set_value(c);}),id)?; }
-        add_group(params,Params::PaletteEnd,"",51,false,false)?;
         add_id(params,Params::Angle,"Angle",ae::AngleDef::setup(|x|{x.set_default(90.0);x.set_value(x.default());}),7)?;
         slider!(Params::Cycles,"Cycles",0.1,20.0,0.1,5.0,1.0,2,8);
         percent_slider!(Params::Offset,"Offset",-100.0,100.0,-100.0,100.0,0.0,1,9);
         add_id(params,Params::Phase,"Phase",ae::AngleDef::setup(|x|{x.set_default(0.0);x.set_value(x.default());}),10)?;
         percent_slider!(Params::Saturation,"Saturation",0.0,200.0,0.0,200.0,100.0,1,11); percent_slider!(Params::Brightness,"Brightness",0.0,400.0,0.0,200.0,100.0,1,12);
+        add_group(params,Params::PaletteEnd,"",51,false,false)?;
         add_group(params,Params::DepthTopic,"Depth",13,true,true)?;
         percent_slider!(Params::Contrast,"Contrast",0.0,400.0,0.0,200.0,100.0,1,14);
         percent_slider!(Params::Bulge,"Bulge",-200.0,200.0,-100.0,100.0,60.0,1,15);

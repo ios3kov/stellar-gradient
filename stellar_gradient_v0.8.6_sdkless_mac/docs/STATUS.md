@@ -220,3 +220,11 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - Selecting a preset restores Angle/Cycles/Offset/Phase, Saturation/Brightness, Depth, Turbulence, Glow, Grain and Optical Diffusion values to the Cosmic defaults recovered from the supplied binary.
 - Editing any of those effect controls switches Presets to Custom.
 - Render Engine and Quality stay Stellar-specific and do not participate in preset identity.
+
+
+### Palette structure parity
+
+- Moved Palette group end to the original Cosmic position after Brightness.
+- Palette now contains Presets, Color 1..5, Angle, Cycles, Offset, Phase, Saturation and Brightness.
+- Depth remains a separate collapsed group.
+- Updated the static verifier for the full-preset implementation and the exact Palette group ordering.

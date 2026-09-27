@@ -39,7 +39,14 @@ ids=[] if not enum_match else [int(x) for x in re.findall(r'=\s*(\d+)',enum_matc
 checks['parameter IDs 1..49 stable + palette group 50..51']=(len(ids)==51 and sorted(ids)==list(range(1,52)) and len(set(ids))==51 and 'Presets = 1' in host and 'PaletteTopic = 50' in host and 'PaletteEnd = 51' in host and 'id != key as i32' in host)
 # Rust requires a leading zero on fractional literals (0.13, not .13).
 checks['no leading-dot Rust floats']=(re.search(r'(?<![A-Za-z0-9_.])\.\d', host) is None)
-checks['palette preset UX']=all(x in host for x in ['"Palette",50,true,false','Params::Presets,"Presets"','UserChangedParam','apply_palette_to_color_params','set_presets_menu_custom'])
+checks['palette preset UX']=all(x in host for x in ['"Palette",50,true,false','Params::Presets,"Presets"','UserChangedParam','apply_cosmic_preset','set_presets_menu_custom'])
+checks['palette group contains full top controls']=(
+    host.index('add_group(params,Params::PaletteTopic') <
+    host.index('Params::Presets,"Presets"') <
+    host.index('Params::Brightness,"Brightness"') <
+    host.index('add_group(params,Params::PaletteEnd') <
+    host.index('add_group(params,Params::DepthTopic')
+)
 checks['original-style angle/percent controls']=all(x in host for x in ['Params::Angle,"Angle",ae::AngleDef::setup','Params::Phase,"Phase",ae::AngleDef::setup','percent_slider!(Params::Offset','percent_slider!(Params::Contrast','percent_slider!(Params::Bulge','percent_slider!(Params::Rounding'])
 checks['ephemeral rustfmt build copy']=('HOST_BUILD="$ROOT/.sdkless-build"' in runner and 'cargo fmt --all' in runner and 'cp -R "$HOST_SRC" "$HOST_BUILD"' in runner)
 failed=[k for k,v in checks.items() if not v]
