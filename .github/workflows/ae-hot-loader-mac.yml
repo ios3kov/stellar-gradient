@@ -1,0 +1,95 @@
+name: AE Hot Loader macOS PoC
+
+on:
+  push:
+    branches:
+      - experiment/ae-hot-loader-mac
+    paths:
+      - "experiments/ae_hot_loader_mac/**"
+      - ".github/workflows/ae-hot-loader-mac.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ae-hot-loader-mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Build Rust effect core
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target-ae-hot-loader
+        run: |
+          set -euo pipefail
+          cargo build             --manifest-path experiments/ae_hot_loader_mac/core/Cargo.toml             --release             --target aarch64-apple-darwin
+
+      - name: Build native wrapper
+        run: |
+          set -euo pipefail
+          mkdir -p build-ae-hot-loader
+          xcrun clang++             -std=c++17             -O2             -arch arm64             -dynamiclib             -fvisibility=hidden             experiments/ae_hot_loader_mac/wrapper/AEHotLoader.cpp             -o build-ae-hot-loader/AEHotLoader
+
+      - name: Assemble plugin bundle
+        run: |
+          set -euo pipefail
+
+          TRIPLE=aarch64-apple-darwin
+          ROOT="target-ae-hot-loader/$TRIPLE/release"
+          BUNDLE="dist/AEHotLoader.plugin"
+
+          CORE="$ROOT/libae_hot_loader_core.dylib"
+          RSRC="$ROOT/ae_hot_loader_core.rsrc"
+          PKG="$ROOT/ae_hot_loader_core_PkgInfo"
+          PLIST="$ROOT/ae_hot_loader_core_Info.plist"
+
+          for f in "$CORE" "$RSRC" "$PKG" "$PLIST" build-ae-hot-loader/AEHotLoader; do
+            test -f "$f" || { echo "missing $f"; exit 3; }
+          done
+
+          mkdir -p "$BUNDLE/Contents/MacOS"                    "$BUNDLE/Contents/Frameworks"                    "$BUNDLE/Contents/Resources"
+
+          cp build-ae-hot-loader/AEHotLoader "$BUNDLE/Contents/MacOS/AEHotLoader"
+          cp "$CORE" "$BUNDLE/Contents/Frameworks/libae_hot_loader_core.dylib"
+          cp "$RSRC" "$BUNDLE/Contents/Resources/AEHotLoader.rsrc"
+          cp "$PKG" "$BUNDLE/Contents/PkgInfo"
+          cp "$PLIST" "$BUNDLE/Contents/Info.plist"
+
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable AEHotLoader' "$BUNDLE/Contents/Info.plist"             || /usr/libexec/PlistBuddy -c 'Add :CFBundleExecutable string AEHotLoader' "$BUNDLE/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.os3kov.AEHotLoader' "$BUNDLE/Contents/Info.plist"             || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.os3kov.AEHotLoader' "$BUNDLE/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName AE Hot Loader' "$BUNDLE/Contents/Info.plist"             || /usr/libexec/PlistBuddy -c 'Add :CFBundleName string AE Hot Loader' "$BUNDLE/Contents/Info.plist"
+
+          codesign --force --sign - "$BUNDLE/Contents/Frameworks/libae_hot_loader_core.dylib"
+          codesign --force --deep --sign - "$BUNDLE"
+
+          codesign --verify --deep --strict "$BUNDLE"
+          plutil -lint "$BUNDLE/Contents/Info.plist"
+          file "$BUNDLE/Contents/MacOS/AEHotLoader"
+          file "$BUNDLE/Contents/Frameworks/libae_hot_loader_core.dylib"
+
+          nm -gU "$BUNDLE/Contents/MacOS/AEHotLoader" |             grep -E 'PluginDataEntryFunction2|EffectMain|LateEffectMain|AEHotLoader_RegisterLateEffect'
+
+          nm -gU "$BUNDLE/Contents/Frameworks/libae_hot_loader_core.dylib" |             grep -E 'EffectMain|AEHotLoaderCore_SetRegisterFn'
+
+      - name: Package test kit
+        run: |
+          set -euo pipefail
+          mkdir -p package
+          cp -R dist/AEHotLoader.plugin package/
+          cp experiments/ae_hot_loader_mac/INSTALL.command package/
+          cp experiments/ae_hot_loader_mac/README.md package/
+          chmod +x package/INSTALL.command
+          ditto -c -k --sequesterRsrc --keepParent package AEHotLoader-mac-arm64-poc.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AEHotLoader-mac-arm64-poc
+          path: AEHotLoader-mac-arm64-poc.zip
+          if-no-files-found: error
