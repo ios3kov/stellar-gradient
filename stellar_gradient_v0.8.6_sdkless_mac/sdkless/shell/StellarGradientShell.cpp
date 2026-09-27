@@ -206,9 +206,12 @@ std::string SelectSource() {
 std::string RuntimeCopyPath(const std::string& source) {
     const auto pid = static_cast<unsigned long long>(getpid());
     const auto ordinal = ++g_reload_ordinal;
+    const char* tmpdir = std::getenv("TMPDIR");
+    const std::filesystem::path temp_root =
+        (tmpdir && *tmpdir) ? std::filesystem::path(tmpdir)
+                            : std::filesystem::path("/private/tmp");
     std::filesystem::path root =
-        std::filesystem::path("/private/tmp/AEHotLoaderShell") /
-        std::to_string(pid);
+        temp_root / "AEHotLoaderShell" / std::to_string(pid);
     std::error_code ec;
     std::filesystem::create_directories(root, ec);
     if (ec) {
