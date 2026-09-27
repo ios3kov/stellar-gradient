@@ -14,12 +14,16 @@ if ! pgrep -x "After Effects" >/dev/null 2>&1; then
 fi
 
 codesign --verify --strict "$SOURCE"
+archs="$(lipo -archs "$SOURCE" 2>/dev/null || true)"
+[[ "$archs" == *arm64* ]] || { echo "ERROR: Stellar Gradient candidate is not arm64."; exit 4; }
+
 mkdir -p "$DEST_DIR"
 TMP="$DEST_DIR/current.tmp.dylib"
 rm -f "$TMP"
 cp "$SOURCE" "$TMP"
 xattr -d com.apple.quarantine "$TMP" 2>/dev/null || true
 mv -f "$TMP" "$DEST"
+codesign --verify --strict "$DEST"
 
 echo "Staged Stellar Gradient candidate:"
 echo "  $DEST"
