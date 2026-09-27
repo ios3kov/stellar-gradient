@@ -396,28 +396,6 @@ impl AdobePluginGlobal for Plugin {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ffi_layout_matches_cpp_contract() {
-        assert_eq!(std::mem::size_of::<Color3>(), 12);
-        assert_eq!(std::mem::size_of::<Point2>(), 8);
-        assert_eq!(std::mem::size_of::<RectC>(), 16);
-        assert_eq!(std::mem::size_of::<ParamsC>(), 184);
-        assert_eq!(std::mem::align_of::<ParamsC>(), 4);
-        assert_eq!(std::mem::offset_of!(ParamsC, diffusion_center), 160);
-        assert_eq!(std::mem::offset_of!(ParamsC, quality), 180);
-        assert_eq!(std::mem::size_of::<RenderStateC>(), 264);
-        assert_eq!(std::mem::align_of::<RenderStateC>(), 8);
-        assert_eq!(std::mem::offset_of!(RenderStateC, input_rect), 184);
-        assert_eq!(std::mem::offset_of!(RenderStateC, time_seconds), 248);
-        assert_eq!(std::mem::offset_of!(RenderStateC, engine_mode), 260);
-    }
-}
-
-
 const HOT_RELOAD_IMPL_LABEL: &str = match option_env!("AE_HOT_LOADER_IMPL_LABEL") {
     Some(value) => value,
     None => "stellar-gradient-dev",
@@ -460,4 +438,25 @@ fn write_hot_reload_string(value: &str, output: *mut c_char, output_capacity: us
         *output.add(count) = 0;
     }
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ffi_layout_matches_cpp_contract() {
+        assert_eq!(std::mem::size_of::<Color3>(), 12);
+        assert_eq!(std::mem::size_of::<Point2>(), 8);
+        assert_eq!(std::mem::size_of::<RectC>(), 16);
+        assert_eq!(std::mem::size_of::<ParamsC>(), 184);
+        assert_eq!(std::mem::align_of::<ParamsC>(), 4);
+        assert_eq!(std::mem::offset_of!(ParamsC, diffusion_center), 160);
+        assert_eq!(std::mem::offset_of!(ParamsC, quality), 180);
+        assert_eq!(std::mem::size_of::<RenderStateC>(), 264);
+        assert_eq!(std::mem::align_of::<RenderStateC>(), 8);
+        assert_eq!(std::mem::offset_of!(RenderStateC, input_rect), 184);
+        assert_eq!(std::mem::offset_of!(RenderStateC, time_seconds), 248);
+        assert_eq!(std::mem::offset_of!(RenderStateC, engine_mode), 260);
+    }
 }
