@@ -163,10 +163,11 @@ std::string RuntimeCopyPath(const std::string& source) {
     return destination.string();
 }
 
-int LoadImplementation(bool force, std::string* detail) {
-    std::lock_guard<std::mutex> lock(g_reload_mutex);
+int LoadImplementationFromSourceLocked(
+    const std::string& source,
+    bool force,
+    std::string* detail) {
 
-    const std::string source = SelectSource();
     if (source.empty()) {
         if (detail) *detail = "No implementation dylib found.";
         return -4101;
@@ -229,7 +230,10 @@ int LoadImplementation(bool force, std::string* detail) {
     }
 
     if (state_abi_fn() != kImplementationStateAbi) {
-        if (detail) *detail = "Implementation state/schema ABI mismatch; AE restart with a rebuilt shell is required.";
+        if (detail) {
+            *detail =
+                "Implementation state/schema ABI mismatch; AE restart with a rebuilt shell is required.";
+        }
         g_loaded_handles.push_back(handle);
         return -4110;
     }
@@ -269,6 +273,19 @@ int LoadImplementation(bool force, std::string* detail) {
     return 0;
 }
 
+int LoadImplementation(bool force, std::string* detail) {
+    std::lock_guard<std::mutex> lock(g_reload_mutex);
+    return LoadImplementationFromSourceLocked(SelectSource(), force, detail);
+}
+
+int LoadBundledImplementation(std::string* detail) {
+    std::lock_guard<std::mutex> lock(g_reload_mutex);
+    return LoadImplementationFromSourceLocked(
+        DefaultImplementationPath(),
+        true,
+        detail);
+}
+
 PF_Err ForwardEffectMain(
     PF_Cmd cmd,
     PF_InData* in_data,
@@ -280,8 +297,17 @@ PF_Err ForwardEffectMain(
     ImplEffectMainFn fn = g_effect_main.load(std::memory_order_acquire);
     if (!fn) {
         std::string detail;
-        const int load_result = LoadImplementation(true, &detail);
+        int load_result = LoadImplementation(true, &detail);
         Log("initial implementation load result=" + std::to_string(load_result) + " " + detail);
+
+        if (load_result < 0 && g_effect_main.load(std::memory_order_acquire) == nullptr) {
+            std::string fallback_detail;
+            const int fallback_result = LoadBundledImplementation(&fallback_detail);
+            Log(
+                "bundled fallback result=" + std::to_string(fallback_result) +
+                " " + fallback_detail);
+        }
+
         fn = g_effect_main.load(std::memory_order_acquire);
     }
 
