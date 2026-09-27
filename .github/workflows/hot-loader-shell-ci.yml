@@ -90,6 +90,13 @@ jobs:
               exit 6
             fi
           done
+          for bin in             "$BUNDLE/Contents/MacOS/StellarGradient"             "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib"             "$CANDIDATE_ROOT/libstellar_gradient_host.dylib"; do
+            xcrun vtool -show-build "$bin" | grep -Eq 'minos[[:space:]]+11\.0' || {
+              echo "ERROR: unexpected macOS deployment target: $bin"
+              xcrun vtool -show-build "$bin"
+              exit 7
+            }
+          done
           plutil -lint "$BUNDLE/Contents/Info.plist"
 
           ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient-hot-loader-shell.zip
