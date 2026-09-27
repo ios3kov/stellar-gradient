@@ -6,6 +6,7 @@ const PF_PLUG_IN_VERSION: u16 = 13;
 const PF_PLUG_IN_SUBVERS: u16 = 29;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=AE_HOT_LOADER_IMPL_LABEL");
     // Rust 1.80+ validates cfg names at the destination crate. The
     // after-effects macro expands these cfgs in our crate, so register them
     // explicitly. Also pin MFR on here instead of depending on pipl's
