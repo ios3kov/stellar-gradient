@@ -75,6 +75,41 @@ jobs:
 
           ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient-hot-loader-shell.zip
 
+      - name: Smoke shell reload
+        shell: bash
+        run: |
+          set -euo pipefail
+          FAKE_HOME="$RUNNER_TEMP/stellar-home"
+          IMPL_DIR="$FAKE_HOME/Library/Application Support/AE Hot Loader/implementations/stellar-gradient"
+          mkdir -p "$IMPL_DIR"
+          cp dist/StellarGradient.plugin/Contents/Frameworks/libstellar_gradient_impl.dylib "$IMPL_DIR/current.dylib"
+
+          cat > "$RUNNER_TEMP/stellar_reload_smoke.cpp" <<'CPP'
+          #include <cstdio>
+          #include <dlfcn.h>
+          using ReloadFn = int (*)(char*, std::size_t);
+          int main(int argc, char** argv) {
+              if (argc != 2) return 10;
+              void* handle = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
+              if (!handle) { std::fprintf(stderr, "%s\n", dlerror()); return 11; }
+              auto reload = reinterpret_cast<ReloadFn>(dlsym(handle, "AEHotLoader_ShellReload"));
+              if (!reload) return 12;
+
+              char first_msg[2048]{};
+              const int first = reload(first_msg, sizeof(first_msg));
+              std::printf("first=%d %s\n", first, first_msg);
+              if (first != 0) return 13;
+
+              char second_msg[2048]{};
+              const int second = reload(second_msg, sizeof(second_msg));
+              std::printf("second=%d %s\n", second, second_msg);
+              return second == 1 ? 0 : 14;
+          }
+          CPP
+
+          xcrun clang++ -std=c++17 -arch arm64 "$RUNNER_TEMP/stellar_reload_smoke.cpp" -o "$RUNNER_TEMP/stellar_reload_smoke"
+          HOME="$FAKE_HOME" "$RUNNER_TEMP/stellar_reload_smoke" "$(pwd)/dist/StellarGradient.plugin/Contents/MacOS/StellarGradient"
+
       - uses: actions/upload-artifact@v4
         with:
           name: StellarGradient-hot-loader-shell
