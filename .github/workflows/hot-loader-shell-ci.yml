@@ -35,12 +35,22 @@ jobs:
           cargo fmt --manifest-path "$FMT_COPY/Cargo.toml"
           cargo fmt --manifest-path "$FMT_COPY/Cargo.toml" -- --check
           zsh -n "$SRC/sdkless/tools/stage_hot_reload_macos.command"
+          zsh -n "$SRC/sdkless/tools/install_hot_loader_package.command"
+          zsh -n "$SRC/sdkless/tools/stage_packaged_hot_reload.command"
           xcrun clang++ -std=c++17 -arch arm64 -Wall -Wextra -Wpedantic -Werror -fsyntax-only "$SRC/sdkless/shell/StellarGradientShell.cpp"
 
       - name: Build implementation
         env:
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target-hot
-          AE_HOT_LOADER_IMPL_LABEL: stellar-ci
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target-hot-default
+          AE_HOT_LOADER_IMPL_LABEL: stellar-default
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path "$SRC/sdkless/Cargo.toml" --release --target aarch64-apple-darwin
+
+      - name: Build candidate implementation
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target-hot-candidate
+          AE_HOT_LOADER_IMPL_LABEL: stellar-candidate-v2
         run: |
           set -euo pipefail
           cargo build --manifest-path "$SRC/sdkless/Cargo.toml" --release --target aarch64-apple-darwin
@@ -48,7 +58,8 @@ jobs:
       - name: Build shell and assemble bundle
         run: |
           set -euo pipefail
-          ROOT="target-hot/aarch64-apple-darwin/release"
+          ROOT="target-hot-default/aarch64-apple-darwin/release"
+          CANDIDATE_ROOT="target-hot-candidate/aarch64-apple-darwin/release"
           BUNDLE="dist/StellarGradient.plugin"
           mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Frameworks" "$BUNDLE/Contents/Resources"
 
@@ -70,7 +81,8 @@ jobs:
 
           nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2|AEHotLoader_ShellReload'
           nm -gU "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep -E 'EffectMain|AEHotLoader_ImplementationABI|AEHotLoader_ImplementationStateABI|AEHotLoader_ImplementationKey|AEHotLoader_ImplementationLabel'
-          strings "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep 'stellar-ci'
+          strings "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep 'stellar-default'
+          strings "$CANDIDATE_ROOT/libstellar_gradient_host.dylib" | grep 'stellar-candidate-v2'
           plutil -lint "$BUNDLE/Contents/Info.plist"
 
           ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient-hot-loader-shell.zip
@@ -82,7 +94,7 @@ jobs:
           FAKE_HOME="$RUNNER_TEMP/stellar-home"
           IMPL_DIR="$FAKE_HOME/Library/Application Support/AE Hot Loader/implementations/stellar-gradient"
           mkdir -p "$IMPL_DIR"
-          cp dist/StellarGradient.plugin/Contents/Frameworks/libstellar_gradient_impl.dylib "$IMPL_DIR/current.dylib"
+          cp target-hot-candidate/aarch64-apple-darwin/release/libstellar_gradient_host.dylib "$IMPL_DIR/current.dylib"
 
           cat > "$RUNNER_TEMP/stellar_reload_smoke.cpp" <<'CPP'
           #include <cstdio>
@@ -110,8 +122,21 @@ jobs:
           xcrun clang++ -std=c++17 -arch arm64 "$RUNNER_TEMP/stellar_reload_smoke.cpp" -o "$RUNNER_TEMP/stellar_reload_smoke"
           HOME="$FAKE_HOME" "$RUNNER_TEMP/stellar_reload_smoke" "$(pwd)/dist/StellarGradient.plugin/Contents/MacOS/StellarGradient"
 
+      - name: Package hot-loader test kit
+        run: |
+          set -euo pipefail
+          rm -rf package StellarGradient-hot-loader-shell-package.zip
+          mkdir -p package
+          cp -R dist/StellarGradient.plugin package/
+          cp target-hot-candidate/aarch64-apple-darwin/release/libstellar_gradient_host.dylib package/StellarGradientImpl-candidate.dylib
+          cp "$SRC/sdkless/tools/install_hot_loader_package.command" package/INSTALL_HOT_LOADER.command
+          cp "$SRC/sdkless/tools/stage_packaged_hot_reload.command" package/STAGE_CANDIDATE.command
+          chmod +x package/INSTALL_HOT_LOADER.command package/STAGE_CANDIDATE.command
+          codesign --force --sign - package/StellarGradientImpl-candidate.dylib
+          ditto -c -k --sequesterRsrc --keepParent package StellarGradient-hot-loader-shell-package.zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: StellarGradient-hot-loader-shell
-          path: StellarGradient-hot-loader-shell.zip
+          path: StellarGradient-hot-loader-shell-package.zip
           if-no-files-found: error
