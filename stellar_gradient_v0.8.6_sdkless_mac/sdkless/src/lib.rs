@@ -138,19 +138,68 @@ fn palette_colors(which: i32) -> Option<[[u8; 3]; 5]> {
     }
 }
 
-fn apply_palette_to_color_params(params: &mut ae::Parameters<Params>, which: i32) -> Result<(), ae::Error> {
+fn set_float_param(params: &mut ae::Parameters<Params>, key: Params, value: f64) -> Result<(), ae::Error> {
+    let mut def = params.get_mut(key)?;
+    def.as_float_slider_mut()?.set_value(value);
+    def.set_value_changed();
+    Ok(())
+}
+
+fn set_angle_param(params: &mut ae::Parameters<Params>, key: Params, value: f32) -> Result<(), ae::Error> {
+    let mut def = params.get_mut(key)?;
+    def.as_angle_mut()?.set_value(value);
+    def.set_value_changed();
+    Ok(())
+}
+
+fn set_checkbox_param(params: &mut ae::Parameters<Params>, key: Params, value: bool) -> Result<(), ae::Error> {
+    let mut def = params.get_mut(key)?;
+    def.as_checkbox_mut()?.set_value(value);
+    def.set_value_changed();
+    Ok(())
+}
+
+fn apply_cosmic_preset(params: &mut ae::Parameters<Params>, which: i32) -> Result<(), ae::Error> {
     let Some(colors) = palette_colors(which) else { return Ok(()); };
     for (key, rgb) in [Params::Color1, Params::Color2, Params::Color3, Params::Color4, Params::Color5]
         .into_iter()
         .zip(colors)
     {
         let mut def = params.get_mut(key)?;
-        {
-            let mut color = def.as_color_mut()?;
-            color.set_value(ae::Pixel8 { alpha: 255, red: rgb[0], green: rgb[1], blue: rgb[2] });
-        }
+        def.as_color_mut()?.set_value(ae::Pixel8 { alpha: 255, red: rgb[0], green: rgb[1], blue: rgb[2] });
         def.set_value_changed();
     }
+
+    // Full shared Cosmic effect state recovered from the supplied Cosmic.aex.
+    set_angle_param(params, Params::Angle, 90.0)?;
+    set_float_param(params, Params::Cycles, 1.0)?;
+    set_float_param(params, Params::Offset, 0.0)?;
+    set_angle_param(params, Params::Phase, 0.0)?;
+    set_float_param(params, Params::Saturation, 100.0)?;
+    set_float_param(params, Params::Brightness, 100.0)?;
+    set_float_param(params, Params::Contrast, 100.0)?;
+    set_float_param(params, Params::Bulge, 60.0)?;
+    set_float_param(params, Params::Rounding, 100.0)?;
+    set_float_param(params, Params::TurbAmount, 40.0)?;
+    set_float_param(params, Params::TurbSizeX, 3.0)?;
+    set_float_param(params, Params::TurbSizeY, 3.0)?;
+    set_angle_param(params, Params::TurbEvolution, 0.0)?;
+    set_float_param(params, Params::TurbSoftness, 40.0)?;
+    set_float_param(params, Params::GlowRadius, 194.0)?;
+    set_float_param(params, Params::GlowFalloff, 50.0)?;
+    set_float_param(params, Params::GlowThreshold, 0.0)?;
+    set_float_param(params, Params::GlowIntensity, 160.0)?;
+    set_float_param(params, Params::GlowSoftClip, 0.0)?;
+    set_float_param(params, Params::GrainAmount, 20.0)?;
+    set_float_param(params, Params::GrainSize, 1.0)?;
+    set_float_param(params, Params::GrainColor, 100.0)?;
+    set_checkbox_param(params, Params::GrainAnimate, true)?;
+    set_float_param(params, Params::DiffBlur, 15.0)?;
+    set_float_param(params, Params::DiffCenterX, 50.0)?;
+    set_float_param(params, Params::DiffCenterY, 50.0)?;
+    set_float_param(params, Params::DiffFocus, 50.0)?;
+    set_float_param(params, Params::DiffFeather, 450.0)?;
+    set_checkbox_param(params, Params::DiffInvert, false)?;
     Ok(())
 }
 
@@ -205,7 +254,11 @@ fn gather_params(params: &mut ae::Parameters<Params>) -> Result<(ParamsC,i32), a
 
 fn add_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def: impl Into<ae::Param<'a>>, id: i32) -> Result<(), ae::Error> {
     if id != key as i32 { return Err(ae::Error::InvalidParms); }
-    params.add_customized(key,name,def,move |pd| { pd.set_id(key as i32); -1 })
+    params.add_customized(key,name,def,move |pd| {
+        pd.set_id(key as i32);
+        pd.set_flag(ae::ParamFlag::SUPERVISE,true);
+        -1
+    })
 }
 fn add_supervised_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def: impl Into<ae::Param<'a>>, id: i32) -> Result<(), ae::Error> {
     if id != key as i32 { return Err(ae::Error::InvalidParms); }
@@ -261,15 +314,21 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.0\rCosmic-matched controls/defaults + Metal + CPU SmartFX"),
+            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.1\rFull Cosmic preset state + Metal + CPU SmartFX"),
             ae::Command::UserChangedParam { param_index } => {
                 match params.type_at(param_index) {
                     Params::Presets => {
                         let which=params.get(Params::Presets)?.as_popup()?.value();
-                        apply_palette_to_color_params(params,which)?;
+                        apply_cosmic_preset(params,which)?;
                         out_data.set_out_flag(ae::OutFlags::RefreshUi,true);
                     }
-                    Params::Color1 | Params::Color2 | Params::Color3 | Params::Color4 | Params::Color5 => {
+                    Params::Color1 | Params::Color2 | Params::Color3 | Params::Color4 | Params::Color5 |
+                    Params::Angle | Params::Cycles | Params::Offset | Params::Phase | Params::Saturation | Params::Brightness |
+                    Params::Contrast | Params::Bulge | Params::Rounding |
+                    Params::TurbAmount | Params::TurbSizeX | Params::TurbSizeY | Params::TurbEvolution | Params::TurbSoftness |
+                    Params::GlowRadius | Params::GlowFalloff | Params::GlowThreshold | Params::GlowIntensity | Params::GlowSoftClip |
+                    Params::GrainAmount | Params::GrainSize | Params::GrainColor | Params::GrainAnimate |
+                    Params::DiffBlur | Params::DiffCenterX | Params::DiffCenterY | Params::DiffFocus | Params::DiffFeather | Params::DiffInvert => {
                         set_presets_menu_custom(params)?;
                         out_data.set_out_flag(ae::OutFlags::RefreshUi,true);
                     }

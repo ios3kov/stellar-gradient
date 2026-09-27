@@ -212,3 +212,11 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - Optical Diffusion now starts at Blur 15, Center 50/50, Focus 50, Feather 450, Invert Off.
 - Depth remains Contrast 100%, Bulge 60%, Rounding 100%; Palette is the only expanded group by default.
 - The supplied Cosmic.aex built-in Colors handler writes Color 1..5; the non-color settings above are its shared effect defaults, so matching both pieces is required for visual preset parity.
+
+
+### Full preset state — v0.9.1
+
+- Built-in Presets now apply the full recovered Cosmic effect state, not only Color 1..5.
+- Selecting a preset restores Angle/Cycles/Offset/Phase, Saturation/Brightness, Depth, Turbulence, Glow, Grain and Optical Diffusion values to the Cosmic defaults recovered from the supplied binary.
+- Editing any of those effect controls switches Presets to Custom.
+- Render Engine and Quality stay Stellar-specific and do not participate in preset identity.
