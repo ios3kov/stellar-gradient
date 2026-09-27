@@ -32,41 +32,37 @@ void box_blur_h(const std::vector<float>& src, std::vector<float>& dst, int w, i
     if (radius <= 0) { dst = src; return; }
     const int span = radius * 2 + 1;
     dst.resize(src.size());
-    parallel_rows(0, h, [&](int y0, int y1) {
-        for (int y = y0; y < y1; ++y) {
-            const std::size_t row = static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
-            float sum = 0.0f;
-            for (int k = -radius; k <= radius; ++k) sum += src[row + static_cast<std::size_t>(std::clamp(k, 0, w - 1))];
-            for (int x = 0; x < w; ++x) {
-                dst[row + static_cast<std::size_t>(x)] = sum / static_cast<float>(span);
-                const int remove_x = std::clamp(x - radius, 0, w - 1);
-                const int add_x = std::clamp(x + radius + 1, 0, w - 1);
-                sum += src[row + static_cast<std::size_t>(add_x)] - src[row + static_cast<std::size_t>(remove_x)];
-            }
+    for (int y = 0; y < h; ++y) {
+        const std::size_t row = static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
+        float sum = 0.0f;
+        for (int k = -radius; k <= radius; ++k) sum += src[row + static_cast<std::size_t>(std::clamp(k, 0, w - 1))];
+        for (int x = 0; x < w; ++x) {
+            dst[row + static_cast<std::size_t>(x)] = sum / static_cast<float>(span);
+            const int remove_x = std::clamp(x - radius, 0, w - 1);
+            const int add_x = std::clamp(x + radius + 1, 0, w - 1);
+            sum += src[row + static_cast<std::size_t>(add_x)] - src[row + static_cast<std::size_t>(remove_x)];
         }
-    });
+    }
 }
 
 void box_blur_v(const std::vector<float>& src, std::vector<float>& dst, int w, int h, int radius) {
     if (radius <= 0) { dst = src; return; }
     const int span = radius * 2 + 1;
     dst.resize(src.size());
-    parallel_rows(0, w, [&](int x0, int x1) {
-        for (int x = x0; x < x1; ++x) {
-            float sum = 0.0f;
-            for (int k = -radius; k <= radius; ++k) {
-                const int yy = std::clamp(k, 0, h - 1);
-                sum += src[static_cast<std::size_t>(yy) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)];
-            }
-            for (int y = 0; y < h; ++y) {
-                dst[static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)] = sum / static_cast<float>(span);
-                const int remove_y = std::clamp(y - radius, 0, h - 1);
-                const int add_y = std::clamp(y + radius + 1, 0, h - 1);
-                sum += src[static_cast<std::size_t>(add_y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)]
-                     - src[static_cast<std::size_t>(remove_y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)];
-            }
+    for (int x = 0; x < w; ++x) {
+        float sum = 0.0f;
+        for (int k = -radius; k <= radius; ++k) {
+            const int yy = std::clamp(k, 0, h - 1);
+            sum += src[static_cast<std::size_t>(yy) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)];
         }
-    });
+        for (int y = 0; y < h; ++y) {
+            dst[static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)] = sum / static_cast<float>(span);
+            const int remove_y = std::clamp(y - radius, 0, h - 1);
+            const int add_y = std::clamp(y + radius + 1, 0, h - 1);
+            sum += src[static_cast<std::size_t>(add_y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)]
+                 - src[static_cast<std::size_t>(remove_y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)];
+        }
+    }
 }
 
 struct CpuRenderWorkspace {
