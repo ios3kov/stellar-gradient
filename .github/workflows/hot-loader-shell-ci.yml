@@ -1,0 +1,78 @@
+name: Hot Loader Shell CI
+
+on:
+  push:
+    branches: ["feature/ae-hot-loader-shell"]
+    paths:
+      - ".github/workflows/hot-loader-shell-ci.yml"
+      - "stellar_gradient_v0.8.6_sdkless_mac/sdkless/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/src/**"
+  workflow_dispatch:
+
+concurrency:
+  group: stellar-hot-loader-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shell:
+    runs-on: macos-15
+    env:
+      SRC: stellar_gradient_v0.8.6_sdkless_mac
+      RUSTFLAGS: --cfg threaded_rendering --cfg smart_render --cfg gpu_render --cfg catch_panics
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+          components: rustfmt
+
+      - name: Static checks
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path "$SRC/sdkless/Cargo.toml" -- --check
+          zsh -n "$SRC/sdkless/tools/stage_hot_reload_macos.command"
+          xcrun clang++ -std=c++17 -arch arm64 -Wall -Wextra -Wpedantic -Werror -fsyntax-only "$SRC/sdkless/shell/StellarGradientShell.cpp"
+
+      - name: Build implementation
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target-hot
+          AE_HOT_LOADER_IMPL_LABEL: stellar-ci
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path "$SRC/sdkless/Cargo.toml" --release --target aarch64-apple-darwin
+
+      - name: Build shell and assemble bundle
+        run: |
+          set -euo pipefail
+          ROOT="target-hot/aarch64-apple-darwin/release"
+          BUNDLE="dist/StellarGradient.plugin"
+          mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Frameworks" "$BUNDLE/Contents/Resources"
+
+          xcrun clang++ -std=c++17 -O2 -arch arm64 -dynamiclib -fvisibility=hidden \
+            "$SRC/sdkless/shell/StellarGradientShell.cpp" \
+            -o "$BUNDLE/Contents/MacOS/StellarGradient"
+
+          cp "$ROOT/libstellar_gradient_host.dylib" "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib"
+          cp "$ROOT/stellar_gradient_host.rsrc" "$BUNDLE/Contents/Resources/StellarGradient.rsrc"
+          cp "$ROOT/stellar_gradient_host_PkgInfo" "$BUNDLE/Contents/PkgInfo"
+          cp "$ROOT/stellar_gradient_host_Info.plist" "$BUNDLE/Contents/Info.plist"
+
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleExecutable string StellarGradient' "$BUNDLE/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist"
+
+          codesign --force --sign - "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib"
+          codesign --force --deep --sign - "$BUNDLE"
+          codesign --verify --deep --strict "$BUNDLE"
+
+          nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2|AEHotLoader_ShellReload'
+          nm -gU "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep -E 'EffectMain|AEHotLoader_ImplementationABI|AEHotLoader_ImplementationStateABI|AEHotLoader_ImplementationKey|AEHotLoader_ImplementationLabel'
+          strings "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep 'stellar-ci'
+          plutil -lint "$BUNDLE/Contents/Info.plist"
+
+          ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient-hot-loader-shell.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StellarGradient-hot-loader-shell
+          path: StellarGradient-hot-loader-shell.zip
+          if-no-files-found: error
