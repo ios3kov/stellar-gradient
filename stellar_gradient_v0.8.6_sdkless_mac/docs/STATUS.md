@@ -187,3 +187,15 @@ Commit: `1fa06bfc2f45b677ba3006f7c5f3f658dd43ec73`
 - ARM64 plugin bundle/sign/upload: PASS.
 
 The v0.8.8 UI corrections are ready for manual After Effects verification.
+
+
+### Cosmic palette parity — v0.8.9 build 17
+
+- Compared the supplied Cosmic.aex binary directly against the Stellar host.
+- Original built-in Colors menu is: Cold, Retro Pop, Sage, Blush, Deep Space, Electric, Ultraviolet, Lagoon, Sunset, Pride Rainbow, Candy, separator, Custom.
+- Deep Space is the original default selection.
+- Stellar now uses the exact observable five editable RGB values for all 11 built-in palettes.
+- The original UserChangedParam handler changes only Color 1..5 when a built-in palette is selected; it does not overwrite Angle, Cycles, Offset, Phase, Depth, Turbulence, Look, Grain or Optical Diffusion. Stellar preserves that behavior.
+- Manual color edits switch the menu to Custom.
+- Palette remains expanded by default; Depth, Turbulence, Look and all nested Look groups are collapsed by default.
+- Render core and Metal shader math are unchanged.
