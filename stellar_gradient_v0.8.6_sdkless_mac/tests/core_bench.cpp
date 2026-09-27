@@ -21,10 +21,10 @@ static void run_case(int w,int h,int frames){
     base.glow_intensity=0.0f;
     base.diffusion_blur_px=0.0f;
     base.grain_amount=0.0f;
-    base.turbulence_amount=0.0f;
+    base.turbulence_amount_px=0.0f;
 
     stellar::Params procedural=base;
-    procedural.turbulence_amount=.22f;
+    procedural.turbulence_amount_px=.22f;
     procedural.grain_amount=.02f;
 
     stellar::Params full=procedural;

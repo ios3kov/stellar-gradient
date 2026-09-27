@@ -26,10 +26,10 @@ int main() {
     p.angle_deg = 31.0f;
     p.cycles = 2.7f;
     p.phase_deg = 83.0f;
-    p.turbulence_amount = 0.18f;
+    p.turbulence_amount_px = 0.18f;
     p.turbulence_size_x = 71.0f;
     p.turbulence_size_y = 93.0f;
-    p.turbulence_evolution = 47.0f;
+    p.turbulence_evolution_deg = 47.0f;
     p.grain_amount = 0.025f;
     p.grain_size_px = 1.5f;
     p.grain_color = 0.35f;

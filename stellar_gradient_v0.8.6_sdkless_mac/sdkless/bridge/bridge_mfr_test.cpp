@@ -13,8 +13,8 @@ static SGParamsC params() {
     const float c[5][3]={{.12f,.05f,.34f},{.12f,.38f,.95f},{.67f,.17f,.95f},{1.f,.31f,.55f},{1.f,.75f,.18f}};
     for(int i=0;i<5;i++) p.colors[i]={c[i][0],c[i][1],c[i][2]};
     p.angle_deg=27.f; p.cycles=2.7f; p.saturation=1.1f; p.brightness=1.2f;
-    p.depth_contrast=1.3f; p.bulge=.4f; p.rounding=.35f;
-    p.turbulence_amount=.2f; p.turbulence_size_x=71.f; p.turbulence_size_y=109.f; p.turbulence_evolution=18.f; p.turbulence_softness=.65f;
+    p.depth_angle_deg=18.f; p.depth_contrast=1.3f; p.bulge=.4f; p.rounding=.35f;
+    p.turbulence_amount=10.f; p.turbulence_size_x=2.4f; p.turbulence_size_y=3.8f; p.turbulence_evolution_deg=18.f; p.depth_softness_px=20.f;
     p.glow_radius_px=18.f; p.glow_falloff=1.4f; p.glow_threshold=.18f; p.glow_intensity=.7f; p.glow_soft_clip=.15f;
     p.grain_amount=.015f; p.grain_size_px=1.25f; p.grain_color=.2f; p.grain_animate=1;
     p.diffusion_blur_px=9.f; p.diffusion_center={.48f,.52f}; p.diffusion_focus_px=16.f; p.diffusion_feather_px=24.f; p.quality=2;

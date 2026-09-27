@@ -17,7 +17,7 @@ int main(){
     }
     stellar::Params p;
     p.angle_deg=43.0f;p.cycles=3.2f;p.phase_deg=127.0f;p.bulge=.55f;p.depth_contrast=1.9f;p.rounding=.7f;
-    p.turbulence_amount=.23f;p.turbulence_size_x=63.0f;p.turbulence_size_y=91.0f;p.turbulence_evolution=88.0f;p.turbulence_softness=.8f;
+    p.turbulence_amount_px=.23f;p.turbulence_size_x=63.0f;p.turbulence_size_y=91.0f;p.turbulence_evolution_deg=88.0f;p.depth_softness_px=.8f;
     p.glow_radius_px=42.0f;p.glow_intensity=1.1f;p.glow_falloff=1.7f;p.grain_amount=.04f;p.grain_color=.4f;
     p.diffusion_blur_px=30.0f;p.diffusion_focus_px=40.0f;p.diffusion_feather_px=75.0f;p.quality=stellar::Quality::Final;
     const stellar::Bounds bounds{0,0,W-1,H-1};

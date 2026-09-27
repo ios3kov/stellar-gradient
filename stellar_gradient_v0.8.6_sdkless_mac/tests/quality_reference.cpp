@@ -94,8 +94,9 @@ int main() {
     base.glow_intensity = 0.0f;
     base.grain_amount = 0.0f;
     base.diffusion_blur_px = 0.0f;
-    base.turbulence_amount = 0.0f;
+    base.turbulence_amount_px = 0.0f;
     base.bulge = 0.0f;
+    base.colors={{{0.12f,0.05f,0.34f},{0.12f,0.38f,0.95f},{0.67f,0.17f,0.95f},{1.0f,0.31f,0.55f},{1.0f,0.75f,0.18f}}};
     base.angle_deg = 37.0f;
     base.cycles = 2.35f;
     base.phase_deg = 123.0f;
@@ -106,11 +107,12 @@ int main() {
     heavy.bulge = 0.42f;
     heavy.rounding = 0.65f;
     heavy.depth_contrast = 1.7f;
-    heavy.turbulence_amount = 0.21f;
-    heavy.turbulence_size_x = 68.0f;
-    heavy.turbulence_size_y = 104.0f;
-    heavy.turbulence_evolution = 57.0f;
-    heavy.turbulence_softness = 0.72f;
+    heavy.depth_angle_deg = 32.0f;
+    heavy.turbulence_amount_px = 18.0f;
+    heavy.turbulence_size_x = 2.5f;
+    heavy.turbulence_size_y = 4.0f;
+    heavy.turbulence_evolution_deg = 57.0f;
+    heavy.depth_softness_px = 24.0f;
     heavy.grain_amount = 0.031f;
     heavy.grain_size_px = 1.4f;
     heavy.grain_color = 0.33f;
@@ -135,6 +137,13 @@ int main() {
     const Signature got_base = render_case(base, 7);
     const Signature got_heavy = render_case(heavy, 19);
     const Signature got_diffusion = render_case(diffusion, 19);
+    auto dump=[](const char* label,const Signature& s){
+        std::printf("%s mean={%.12g,%.12g,%.12g,%.12g} max={%.12g,%.12g,%.12g,%.12g} energy=%.12g\n",
+                    label,s.mean[0],s.mean[1],s.mean[2],s.mean[3],
+                    static_cast<double>(s.maxv[0]),static_cast<double>(s.maxv[1]),
+                    static_cast<double>(s.maxv[2]),static_cast<double>(s.maxv[3]),s.energy);
+    };
+    dump("base",got_base); dump("heavy",got_heavy); dump("diffusion",got_diffusion);
 
     // Bootstrap mode: zeros mean print signatures so the source can be pinned.
     if (expected_base.energy == 0.0) {

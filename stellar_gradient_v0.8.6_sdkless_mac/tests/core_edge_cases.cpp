@@ -30,11 +30,12 @@ int main(){
         p.depth_contrast=0.05f+4.0f*u01(rng);
         p.bulge=-1.0f+2.0f*u01(rng);
         p.rounding=u01(rng);
-        p.turbulence_amount=u01(rng);
-        p.turbulence_size_x=1.0f+500.0f*u01(rng);
-        p.turbulence_size_y=1.0f+500.0f*u01(rng);
-        p.turbulence_evolution=-360.0f+720.0f*u01(rng);
-        p.turbulence_softness=u01(rng);
+        p.depth_angle_deg=-360.0f+720.0f*u01(rng);
+        p.turbulence_amount_px=120.0f*u01(rng);
+        p.turbulence_size_x=0.1f+9.9f*u01(rng);
+        p.turbulence_size_y=0.1f+9.9f*u01(rng);
+        p.turbulence_evolution_deg=-360.0f+720.0f*u01(rng);
+        p.depth_softness_px=120.0f*u01(rng);
         p.glow_radius_px=120.0f*u01(rng);
         p.glow_falloff=0.25f+3.75f*u01(rng);
         p.glow_threshold=u01(rng);

@@ -13,7 +13,7 @@ static SGParamsC simple() {
     SGParamsC p{};
     for(auto& c:p.colors) c={.8f,.7f,.6f};
     p.angle_deg=0; p.cycles=1; p.saturation=1; p.brightness=2.5f;
-    p.depth_contrast=1; p.turbulence_size_x=120; p.turbulence_size_y=120; p.turbulence_softness=.5f;
+    p.depth_contrast=1; p.turbulence_size_x=3; p.turbulence_size_y=3; p.depth_softness_px=40.f;
     p.glow_falloff=1.6f; p.glow_threshold=.2f; p.glow_soft_clip=0;
     p.grain_size_px=1; p.diffusion_center={.5f,.5f}; p.diffusion_focus_px=10; p.diffusion_feather_px=10; p.quality=2;
     return p;
