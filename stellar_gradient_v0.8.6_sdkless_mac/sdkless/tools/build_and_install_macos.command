@@ -7,6 +7,7 @@ REPORT="$ROOT/mac_first_build_report"
 ZIP="$ROOT/mac_first_build_report.zip"
 TARGET="$ROOT/.sdkless-target"
 TRIPLE="aarch64-apple-darwin"
+export MACOSX_DEPLOYMENT_TARGET="11.0"
 BUNDLE="$ROOT/dist/mac/StellarGradient.plugin"
 DEST="$HOME/Library/Application Support/Adobe/Common/Plug-ins/7.0/MediaCore"
 
@@ -146,7 +147,7 @@ SHELL_BIN="$BUNDLE/Contents/MacOS/StellarGradient"
 IMPL_BIN="$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib"
 
 xcrun clang++ \
-  -std=c++17 -O2 -arch arm64 -dynamiclib -fvisibility=hidden \
+  -std=c++17 -O2 -arch arm64 -mmacosx-version-min=11.0 -dynamiclib -fvisibility=hidden \
   "$HOST_BUILD/shell/StellarGradientShell.cpp" \
   -o "$SHELL_BIN"
 
