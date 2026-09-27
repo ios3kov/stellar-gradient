@@ -29,7 +29,11 @@ jobs:
       - name: Static checks
         run: |
           set -euo pipefail
-          cargo fmt --manifest-path "$SRC/sdkless/Cargo.toml" -- --check
+          FMT_COPY="$RUNNER_TEMP/stellar-sdkless-fmt"
+          rm -rf "$FMT_COPY"
+          cp -R "$SRC/sdkless" "$FMT_COPY"
+          cargo fmt --manifest-path "$FMT_COPY/Cargo.toml"
+          cargo fmt --manifest-path "$FMT_COPY/Cargo.toml" -- --check
           zsh -n "$SRC/sdkless/tools/stage_hot_reload_macos.command"
           xcrun clang++ -std=c++17 -arch arm64 -Wall -Wextra -Wpedantic -Werror -fsyntax-only "$SRC/sdkless/shell/StellarGradientShell.cpp"
 
