@@ -239,10 +239,15 @@ std::string RuntimeCopyPath(const std::string& source) {
 }
 
 
-void DiscardCandidate(void* handle, const std::string& runtime_path) {
+void RetainRejectedCandidate(void* handle, const std::string& runtime_path) {
     if (handle) {
-        dlclose(handle);
+        // A successful dlopen may have executed static initializers. Never run
+        // unload/destructor code inside a live AE process; retain the image
+        // until process exit. Rejected generations count toward the safety cap.
+        g_loaded_handles.push_back(handle);
+        return;
     }
+
     std::error_code remove_error;
     std::filesystem::remove(runtime_path, remove_error);
 }
@@ -255,6 +260,16 @@ int LoadImplementationFromSourceLocked(
     if (source.empty()) {
         if (detail) *detail = "No implementation dylib found.";
         return -4101;
+    }
+
+    // Fast path: do not even map a candidate while an EffectMain call is
+    // already in flight. The final generation gate below still handles races.
+    if (g_active_calls.load(std::memory_order_acquire) != 0 ||
+        g_swap_pending.load(std::memory_order_acquire)) {
+        if (detail) {
+            *detail = "Effect is busy with an in-flight call; retry Reload Plugins.";
+        }
+        return -4112;
     }
 
     const std::string runtime_path = RuntimeCopyPath(source);
@@ -296,7 +311,7 @@ int LoadImplementationFromSourceLocked(
         if (detail) {
             *detail = std::string("dlopen failed: ") + (error ? error : "unknown");
         }
-        DiscardCandidate(nullptr, runtime_path);
+        RetainRejectedCandidate(nullptr, runtime_path);
         return -4104;
     }
 
@@ -306,7 +321,7 @@ int LoadImplementationFromSourceLocked(
         if (detail) {
             *detail = std::string("EffectMain missing: ") + (error ? error : "unknown");
         }
-        DiscardCandidate(handle, runtime_path);
+        RetainRejectedCandidate(handle, runtime_path);
         return -4105;
     }
 
@@ -321,13 +336,13 @@ int LoadImplementationFromSourceLocked(
 
     if (!abi_fn || !state_abi_fn || !key_fn || !label_fn) {
         if (detail) *detail = "Implementation hot-reload ABI exports are missing.";
-        DiscardCandidate(handle, runtime_path);
+        RetainRejectedCandidate(handle, runtime_path);
         return -4108;
     }
 
     if (abi_fn() != kImplementationAbi) {
         if (detail) *detail = "Implementation protocol ABI mismatch.";
-        DiscardCandidate(handle, runtime_path);
+        RetainRejectedCandidate(handle, runtime_path);
         return -4109;
     }
 
@@ -336,7 +351,7 @@ int LoadImplementationFromSourceLocked(
             *detail =
                 "Implementation state/schema ABI mismatch; AE restart with a rebuilt shell is required.";
         }
-        DiscardCandidate(handle, runtime_path);
+        RetainRejectedCandidate(handle, runtime_path);
         return -4110;
     }
 
@@ -348,14 +363,14 @@ int LoadImplementationFromSourceLocked(
                       kImplementationKey + ", got " +
                       (key_buffer[0] ? key_buffer : "(invalid)");
         }
-        DiscardCandidate(handle, runtime_path);
+        RetainRejectedCandidate(handle, runtime_path);
         return -4111;
     }
 
     char label_buffer[256]{};
     if (label_fn(label_buffer, sizeof(label_buffer)) != 0 || label_buffer[0] == '\0') {
         if (detail) *detail = "Implementation label is invalid.";
-        DiscardCandidate(handle, runtime_path);
+        RetainRejectedCandidate(handle, runtime_path);
         return -4113;
     }
     const std::string implementation_label(label_buffer);
@@ -369,7 +384,7 @@ int LoadImplementationFromSourceLocked(
                 true,
                 std::memory_order_acq_rel,
                 std::memory_order_acquire)) {
-            DiscardCandidate(handle, runtime_path);
+            RetainRejectedCandidate(handle, runtime_path);
             if (detail) {
                 *detail = "Another implementation swap is already pending; retry Reload Plugins.";
             }
@@ -379,7 +394,7 @@ int LoadImplementationFromSourceLocked(
         SwapPendingGuard swap_guard(true);
 
         if (g_active_calls.load(std::memory_order_acquire) != 0) {
-            DiscardCandidate(handle, runtime_path);
+            RetainRejectedCandidate(handle, runtime_path);
             if (detail) {
                 *detail = "Effect is busy with an in-flight call; retry Reload Plugins.";
             }
