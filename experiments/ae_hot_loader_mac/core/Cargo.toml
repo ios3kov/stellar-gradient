@@ -1,0 +1,22 @@
+[package]
+name = "ae_hot_loader_core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+build = "build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+after-effects = { git = "https://github.com/virtualritz/after-effects", rev = "83dcc93734fd5db1335b6ec83cba7a6505a39dcc", package = "after-effects" }
+
+[build-dependencies]
+pipl = { git = "https://github.com/virtualritz/after-effects", rev = "83dcc93734fd5db1335b6ec83cba7a6505a39dcc", package = "pipl" }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+codegen-units = 1
+panic = "unwind"
+debug = true
