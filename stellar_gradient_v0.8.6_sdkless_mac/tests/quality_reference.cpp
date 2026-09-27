@@ -136,6 +136,14 @@ int main() {
     const Signature got_heavy = render_case(heavy, 19);
     const Signature got_diffusion = render_case(diffusion, 19);
 
+    auto dump_now=[](const char* label,const Signature& s){
+        std::printf("%s mean={%.12g,%.12g,%.12g,%.12g} max={%.12g,%.12g,%.12g,%.12g} energy=%.12g\n",
+                    label,s.mean[0],s.mean[1],s.mean[2],s.mean[3],
+                    static_cast<double>(s.maxv[0]),static_cast<double>(s.maxv[1]),
+                    static_cast<double>(s.maxv[2]),static_cast<double>(s.maxv[3]),s.energy);
+    };
+    dump_now("base",got_base); dump_now("heavy",got_heavy); dump_now("diffusion",got_diffusion);
+
     // Bootstrap mode: zeros mean print signatures so the source can be pinned.
     if (expected_base.energy == 0.0) {
         auto dump=[](const char* label,const Signature& s){
