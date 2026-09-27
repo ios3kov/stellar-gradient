@@ -233,6 +233,8 @@ fn add_group(params: &mut ae::Parameters<Params>, key: Params, name: &str, id: i
 
 impl AdobePluginGlobal for Plugin {
     fn params_setup(&self, params: &mut ae::Parameters<Params>, _in_data: ae::InData, _: ae::OutData) -> Result<(), ae::Error> {
+        // Keep legacy disk IDs reserved without registering hidden AE controls.
+        let _reserved_legacy_ids = (Params::DiffCenterX, Params::DiffCenterY);
         macro_rules! slider { ($key:expr,$name:expr,$vmin:expr,$vmax:expr,$smin:expr,$smax:expr,$d:expr,$prec:expr,$id:expr) => {{
             add_id(params,$key,$name,ae::FloatSliderDef::setup(|x|{x.set_valid_min($vmin);x.set_valid_max($vmax);x.set_slider_min($smin);x.set_slider_max($smax);x.set_default($d);x.set_precision($prec);x.set_value(x.default());}),$id)?;
         }}; }
