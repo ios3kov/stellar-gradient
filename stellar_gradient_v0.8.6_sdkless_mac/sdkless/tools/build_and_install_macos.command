@@ -138,10 +138,19 @@ PKG="$TARGET/$TRIPLE/release/stellar_gradient_host_PkgInfo"
 PLIST="$TARGET/$TRIPLE/release/stellar_gradient_host_Info.plist"
 for f in "$BIN" "$RSRC" "$PKG" "$PLIST"; do [[ -f "$f" ]] || { echo "ERROR: missing build output $f"; exit 3; }; done
 
-echo "[6/8] Bundle + local signing"
+echo "[6/8] Bundle stable shell + implementation + local signing"
 rm -rf "$BUNDLE"
-mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
-cp "$BIN" "$BUNDLE/Contents/MacOS/StellarGradient"
+mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Frameworks" "$BUNDLE/Contents/Resources"
+
+SHELL_BIN="$BUNDLE/Contents/MacOS/StellarGradient"
+IMPL_BIN="$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib"
+
+xcrun clang++ \
+  -std=c++17 -O2 -arch arm64 -dynamiclib -fvisibility=hidden \
+  "$HOST_BUILD/shell/StellarGradientShell.cpp" \
+  -o "$SHELL_BIN"
+
+cp "$BIN" "$IMPL_BIN"
 cp "$RSRC" "$BUNDLE/Contents/Resources/StellarGradient.rsrc"
 cp "$PKG" "$BUNDLE/Contents/PkgInfo"
 cp "$PLIST" "$BUNDLE/Contents/Info.plist"
@@ -149,10 +158,12 @@ cp "$PLIST" "$BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName "Stellar Gradient"' "$BUNDLE/Contents/Info.plist" || true
 xattr -dr com.apple.quarantine "$BUNDLE" 2>/dev/null || true
+codesign --force --sign - "$IMPL_BIN"
 codesign --force --deep --options runtime --sign - "$BUNDLE"
 codesign --verify --deep --strict "$BUNDLE"
-file "$BUNDLE/Contents/MacOS/StellarGradient"
-nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2'
+file "$SHELL_BIN"
+nm -gU "$SHELL_BIN" | grep -E 'EffectMain|PluginDataEntryFunction2|AEHotLoader_ShellReload'
+nm -gU "$IMPL_BIN" | grep -E 'EffectMain|AEHotLoader_ImplementationABI|AEHotLoader_ImplementationStateABI|AEHotLoader_ImplementationKey|AEHotLoader_ImplementationLabel'
 plutil -lint "$BUNDLE/Contents/Info.plist"
 
 echo "[7/8] Install"
