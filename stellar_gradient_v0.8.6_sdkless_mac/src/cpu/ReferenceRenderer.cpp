@@ -32,7 +32,49 @@ struct CpuRenderWorkspace {
     // Glow and diffusion never need their mip pyramids at the same time.
     // Reusing one pyramid cuts peak/retained scratch memory roughly in half.
     MipPyramidRGBA pyramid;
+    std::vector<float> depth_a;
+    std::vector<float> depth_b;
 };
+
+void box_blur_h(const std::vector<float>& src, std::vector<float>& dst, int width, int height, int radius) {
+    const int diameter = radius * 2 + 1;
+    const float inv = 1.0f / static_cast<float>(diameter);
+    parallel_rows(0, height, [&](int y0, int y1) {
+        for (int y = y0; y < y1; ++y) {
+            const std::size_t row = static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+            float sum = 0.0f;
+            for (int k = -radius; k <= radius; ++k) sum += src[row + static_cast<std::size_t>(std::clamp(k, 0, width - 1))];
+            for (int x = 0; x < width; ++x) {
+                dst[row + static_cast<std::size_t>(x)] = sum * inv;
+                const int remove_x = std::clamp(x - radius, 0, width - 1);
+                const int add_x = std::clamp(x + radius + 1, 0, width - 1);
+                sum += src[row + static_cast<std::size_t>(add_x)] - src[row + static_cast<std::size_t>(remove_x)];
+            }
+        }
+    });
+}
+
+void box_blur_v(const std::vector<float>& src, std::vector<float>& dst, int width, int height, int radius) {
+    const int diameter = radius * 2 + 1;
+    const float inv = 1.0f / static_cast<float>(diameter);
+    parallel_rows(0, width, [&](int x0, int x1) {
+        for (int x = x0; x < x1; ++x) {
+            float sum = 0.0f;
+            for (int k = -radius; k <= radius; ++k) {
+                const int yy = std::clamp(k, 0, height - 1);
+                sum += src[static_cast<std::size_t>(yy) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
+            }
+            for (int y = 0; y < height; ++y) {
+                const std::size_t i = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+                dst[i] = sum * inv;
+                const int remove_y = std::clamp(y - radius, 0, height - 1);
+                const int add_y = std::clamp(y + radius + 1, 0, height - 1);
+                sum += src[static_cast<std::size_t>(add_y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)]
+                     - src[static_cast<std::size_t>(remove_y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
+            }
+        }
+    });
+}
 
 thread_local CpuRenderWorkspace g_workspace;
 
@@ -80,6 +122,42 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
     const float glow_threshold_inv = 1.0f / std::max(1e-5f, 1.0f - q.glow_threshold);
     const float glow_spread = std::max(0.35f, 0.45f * q.glow_falloff);
 
+    const float* depth_map = nullptr;
+    if (depth_active) {
+        const std::size_t pixels = static_cast<std::size_t>(img.width) * static_cast<std::size_t>(img.height);
+        g_workspace.depth_a.resize(pixels);
+        g_workspace.depth_b.resize(pixels);
+        parallel_rows(0, img.height, [&](int y0, int y1) {
+            for (int y = y0; y < y1; ++y) {
+                const float* src = img.src_rgba + static_cast<std::size_t>(y) * static_cast<std::size_t>(img.stride_floats);
+                for (int x = 0; x < img.width; ++x) {
+                    const float alpha = clamp01(src[x * 4 + 3]);
+                    const float dx = static_cast<float>(x) - cx;
+                    const float dy = static_cast<float>(y) - cy;
+                    const float ramp = clamp01(0.5f + 0.5f * (dx * depth_dir_x + dy * depth_dir_y) * depth_inv_diag);
+                    float depth = alpha * ramp;
+                    if (alpha > 0.0f && std::abs(q.depth_contrast - 1.0f) > 1.0e-3f) {
+                        depth = alpha * clamp01((depth - 0.5f) * q.depth_contrast + 0.5f);
+                    }
+                    g_workspace.depth_a[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)] = depth;
+                }
+            }
+        });
+
+        // Exact Cosmic.aex rounding path:
+        // R = min(width,height) * 0.125 * 0.7 * rounding.
+        // If R >= 0.5, run 3 separable box-blur passes, each radius max(1,lround(R/3)).
+        const float rounding_radius = static_cast<float>(std::min(img.width, img.height)) * 0.0875f * rounding;
+        if (rounding_radius >= 0.5f) {
+            const int pass_radius = std::max(1, static_cast<int>(std::lround(rounding_radius / 3.0f)));
+            for (int pass = 0; pass < 3; ++pass) {
+                box_blur_h(g_workspace.depth_a, g_workspace.depth_b, img.width, img.height, pass_radius);
+                box_blur_v(g_workspace.depth_b, g_workspace.depth_a, img.width, img.height, pass_radius);
+            }
+        }
+        depth_map = g_workspace.depth_a.data();
+    }
+
     float* glow_source = nullptr;
     if (plan.glow) {
         glow_source = g_workspace.pyramid.prepare_level0(img.width, img.height);
@@ -110,15 +188,8 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                 }
 
                 if (depth_active) {
-                    const float dx = static_cast<float>(x) - cx;
-                    const float dy = static_cast<float>(y) - cy;
-                    float ramp = clamp01(0.5f + 0.5f * (dx * depth_dir_x + dy * depth_dir_y) * depth_inv_diag);
-                    ramp = lerp(ramp, smooth01(ramp), rounding);
-                    float depth = alpha * ramp;
-                    if (alpha > 0.0f && std::abs(q.depth_contrast - 1.0f) > 1.0e-3f) {
-                        depth = alpha * clamp01((depth - 0.5f) * q.depth_contrast + 0.5f);
-                    }
-                    u += depth * q.bulge;
+                    const std::size_t depth_i = static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x);
+                    u += depth_map[depth_i] * q.bulge;
                 }
 
                 Color3f c = adjust_sat_brightness(sample_palette(q.colors, u), q.saturation, q.brightness);

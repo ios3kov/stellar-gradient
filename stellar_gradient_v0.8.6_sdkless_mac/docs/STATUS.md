@@ -245,3 +245,13 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - Replaced the old radial dome with the recovered directional depth ramp on CPU and Metal: Angle -> cos/sin, Contrast shapes the mask, Bulge offsets the gradient coordinate.
 - CPU and Metal use the same equation.
 - Rounding is currently a fused continuous smoothing approximation. Cosmic applies it as a separate blur of the depth map; exact Rounding blur parity remains the next Depth item.
+
+
+### Exact Cosmic Rounding — original Cosmic.aex verified
+
+- Source of truth: user-supplied Cosmic.aex SHA-256 b1b55fc6f0795dad45dfd1e79bfd180eb6d881519aade4250bd6416d737a3ea8.
+- Recovered the exact Rounding host path from the original binary.
+- Rounding radius: R = min(width,height) * 0.125 * 0.7 * rounding.
+- When R >= 0.5, Cosmic performs three blur passes; each pass is horizontal box blur + vertical box blur with radius max(1, lround(R / 3)).
+- CPU now builds a separate depth map and applies the exact three-pass separable box blur before Bulge offsets the gradient coordinate.
+- Metal now mirrors the same depth-map pipeline and three box passes using MPSImageBox with clamp edges.

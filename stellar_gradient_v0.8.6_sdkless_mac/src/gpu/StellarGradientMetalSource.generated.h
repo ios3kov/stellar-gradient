@@ -47,40 +47,48 @@ inline float4 load_bgra(device const float4* src,constant SGParamsGPU& p,uint2 g
 } // AE GPU worlds are BGRA128
 inline void store_bgra(device float4* dst,int pitch,uint2 gid,float4 q){dst[gid.y*uint(pitch)+gid.x]=float4(q.z,q.y,q.x,q.w);}
 
-inline float4 shade_base(device const float4* src, constant SGParamsGPU& p, uint2 gid) {
+inline float4 shade_base(device const float4* src, texture2d<float, access::read> depth_map, constant SGParamsGPU& p, uint2 gid) {
     float4 s=load_bgra(src,p,gid); float alpha=clamp01(s.a);
     float nx=(float(gid.x)-p.bound_cx)*p.inv_bw,ny=(float(gid.y)-p.bound_cy)*p.inv_bh;
     float u=(nx*p.dir_x+ny*p.dir_y)*p.cycles+p.phase_offset;
     float2 layer_pos=float2(int(gid.x)+p.origin_x,int(gid.y)+p.origin_y);
     if(p.turbulence_amount!=0){u+=fbm(layer_pos.x*p.turbulence_inv_x+p.turbulence_evo_x,layer_pos.y*p.turbulence_inv_y+p.turbulence_evo_y,p.turbulence_softness,0x6d2b79f5u)*p.turbulence_amount;}
-    if(p.depth_enabled!=0u){
-        float dx=float(gid.x)-p.bound_cx,dy=float(gid.y)-p.bound_cy;
-        float ramp=clamp01(0.5f+0.5f*(dx*p.depth_dir_x+dy*p.depth_dir_y)*p.depth_inv_diag);
-        ramp=mix(ramp,sm(ramp),p.rounding_clamped);
-        float depth=alpha*ramp;
-        if(alpha>0.0f && abs(p.depth_contrast-1.0f)>1.0e-3f) depth=alpha*clamp01((depth-0.5f)*p.depth_contrast+0.5f);
-        u+=depth*p.bulge;
-    }
+    if(p.depth_enabled!=0u) u+=depth_map.read(gid).r*p.bulge;
     float3 c=palette(p,u);
     if(p.grain_amount>0){uint gx=uint(int(floor(layer_pos.x*p.grain_inv_size))),gy=uint(int(floor(layer_pos.y*p.grain_inv_size)));uint h=h32(p.grain_seed ^ gx*73856093u ^ gy*19349663u);float mono=(h01(h)-.5f)*2.0f*p.grain_amount;float3 chr=float3(h01(h^0x68bc21ebu),h01(h^0x02e5be93u),h01(h^0x967a889bu));chr=(chr-.5f)*2.0f*p.grain_amount;c+=mix(float3(mono),chr,p.grain_color);}
     return float4(c*alpha,alpha);
 }
 
+kernel void SGDepthKernel(device const float4* src [[buffer(0)]],
+                          texture2d<float, access::write> depth_map [[texture(0)]],
+                          constant SGParamsGPU& p [[buffer(1)]],
+                          uint2 gid [[thread_position_in_grid]]) {
+    if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return;
+    float alpha=clamp01(load_bgra(src,p,gid).a);
+    float dx=float(gid.x)-p.bound_cx,dy=float(gid.y)-p.bound_cy;
+    float ramp=clamp01(0.5f+0.5f*(dx*p.depth_dir_x+dy*p.depth_dir_y)*p.depth_inv_diag);
+    float depth=alpha*ramp;
+    if(alpha>0.0f && abs(p.depth_contrast-1.0f)>1.0e-3f) depth=alpha*clamp01((depth-0.5f)*p.depth_contrast+0.5f);
+    depth_map.write(float4(depth,0.0f,0.0f,1.0f),gid);
+}
+
 kernel void SGBaseKernel(device const float4* src [[buffer(0)]],
                          texture2d<float, access::write> base [[texture(0)]],
+                         texture2d<float, access::read> depth_map [[texture(1)]],
                          constant SGParamsGPU& p [[buffer(1)]],
                          uint2 gid [[thread_position_in_grid]]) {
     if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return;
-    base.write(shade_base(src,p,gid),gid);
+    base.write(shade_base(src,depth_map,p,gid),gid);
 }
 
 kernel void SGBaseGlowKernel(device const float4* src [[buffer(0)]],
                              texture2d<float, access::write> base [[texture(0)]],
                              texture2d<float, access::write> glow0 [[texture(1)]],
+                             texture2d<float, access::read> depth_map [[texture(2)]],
                              constant SGParamsGPU& p [[buffer(1)]],
                              uint2 gid [[thread_position_in_grid]]) {
     if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return;
-    float4 v=shade_base(src,p,gid);
+    float4 v=shade_base(src,depth_map,p,gid);
     base.write(v,gid);
     float lum=dot(v.rgb,float3(.2126,.7152,.0722));
     float k=clamp01((lum-p.glow_threshold)*p.glow_threshold_inv);
@@ -89,10 +97,11 @@ kernel void SGBaseGlowKernel(device const float4* src [[buffer(0)]],
 
 kernel void SGBaseOutKernel(device const float4* src [[buffer(0)]],
                             device float4* dst [[buffer(1)]],
+                            texture2d<float, access::read> depth_map [[texture(0)]],
                             constant SGParamsGPU& p [[buffer(2)]],
                             uint2 gid [[thread_position_in_grid]]) {
     if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return;
-    store_bgra(dst,p.dst_pitch,gid,shade_base(src,p,gid));
+    store_bgra(dst,p.dst_pitch,gid,shade_base(src,depth_map,p,gid));
 }
 
 inline float4 composite_pixel(texture2d<float, access::read> base,
