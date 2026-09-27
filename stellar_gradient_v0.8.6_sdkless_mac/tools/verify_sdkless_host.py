@@ -36,7 +36,7 @@ checks={
 import re
 enum_match=re.search(r'enum Params \{(.*?)\n\}',host,re.S)
 ids=[] if not enum_match else [int(x) for x in re.findall(r'=\s*(\d+)',enum_match.group(1))]
-checks['parameter IDs 1..49 stable + palette group 50..51']=(len(ids)==51 and sorted(ids)==list(range(1,52)) and len(set(ids))==51 and 'Presets = 1' in host and 'PaletteTopic = 50' in host and 'PaletteEnd = 51' in host and 'id != key as i32' in host)
+checks['parameter IDs 1..49 stable + palette group 50..51 + center 52']=(len(ids)==52 and sorted(ids)==list(range(1,53)) and len(set(ids))==52 and 'Presets = 1' in host and 'PaletteTopic = 50' in host and 'PaletteEnd = 51' in host and 'DiffCenter = 52' in host and 'id != key as i32' in host)
 # Rust requires a leading zero on fractional literals (0.13, not .13).
 checks['no leading-dot Rust floats']=(re.search(r'(?<![A-Za-z0-9_.])\.\d', host) is None)
 checks['palette preset UX']=all(x in host for x in ['"Palette",50,true,false','Params::Presets,"Presets"','UserChangedParam','apply_cosmic_preset','set_presets_menu_custom'])
@@ -52,3 +52,9 @@ checks['ephemeral rustfmt build copy']=('HOST_BUILD="$ROOT/.sdkless-build"' in r
 failed=[k for k,v in checks.items() if not v]
 for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
 if failed: raise SystemExit(1)
+
+checks['native optical center'] = all(x in host for x in [
+    'Params::DiffCenter,"Center",ae::PointDef::setup',
+    'Params::DiffCenter)?.as_point()?.value()',
+    'ParamUIFlags::INVISIBLE',
+])

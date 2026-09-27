@@ -228,3 +228,11 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - Palette now contains Presets, Color 1..5, Angle, Cycles, Offset, Phase, Saturation and Brightness.
 - Depth remains a separate collapsed group.
 - Updated the static verifier for the full-preset implementation and the exact Palette group ordering.
+
+
+### Native Optical Diffusion Center — v0.9.2
+
+- Replaced the visible Center X / Center Y sliders with one native AE Point control named Center, matching Cosmic.
+- Center defaults to 50/50 and is normalized against the source layer dimensions for the render core.
+- Legacy Center X/Y IDs 41/42 remain present but invisible; the new Point uses ID 52.
+- Full preset application resets Center to the actual layer center.

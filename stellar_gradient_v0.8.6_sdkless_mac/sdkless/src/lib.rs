@@ -91,7 +91,7 @@ enum Params {
     GrainTopic = 33, GrainAmount = 34, GrainSize = 35, GrainColor = 36, GrainAnimate = 37, GrainEnd = 38,
     DiffTopic = 39, DiffBlur = 40, DiffCenterX = 41, DiffCenterY = 42, DiffFocus = 43, DiffFeather = 44, DiffInvert = 45, DiffEnd = 46,
     LookEnd = 47, Engine = 48, Quality = 49,
-    PaletteTopic = 50, PaletteEnd = 51,
+    PaletteTopic = 50, PaletteEnd = 51, DiffCenter = 52,
 }
 
 #[derive(Default)]
@@ -159,7 +159,14 @@ fn set_checkbox_param(params: &mut ae::Parameters<Params>, key: Params, value: b
     Ok(())
 }
 
-fn apply_cosmic_preset(params: &mut ae::Parameters<Params>, which: i32) -> Result<(), ae::Error> {
+fn set_point_param(params: &mut ae::Parameters<Params>, key: Params, value: (f32, f32)) -> Result<(), ae::Error> {
+    let mut def = params.get_mut(key)?;
+    def.as_point_mut()?.set_value(value);
+    def.set_value_changed();
+    Ok(())
+}
+
+fn apply_cosmic_preset(params: &mut ae::Parameters<Params>, which: i32, layer_width: f32, layer_height: f32) -> Result<(), ae::Error> {
     let Some(colors) = palette_colors(which) else { return Ok(()); };
     for (key, rgb) in [Params::Color1, Params::Color2, Params::Color3, Params::Color4, Params::Color5]
         .into_iter()
@@ -195,8 +202,7 @@ fn apply_cosmic_preset(params: &mut ae::Parameters<Params>, which: i32) -> Resul
     set_float_param(params, Params::GrainColor, 100.0)?;
     set_checkbox_param(params, Params::GrainAnimate, true)?;
     set_float_param(params, Params::DiffBlur, 15.0)?;
-    set_float_param(params, Params::DiffCenterX, 50.0)?;
-    set_float_param(params, Params::DiffCenterY, 50.0)?;
+    set_point_param(params, Params::DiffCenter, (layer_width * 0.5, layer_height * 0.5))?;
     set_float_param(params, Params::DiffFocus, 50.0)?;
     set_float_param(params, Params::DiffFeather, 450.0)?;
     set_checkbox_param(params, Params::DiffInvert, false)?;
@@ -216,7 +222,7 @@ fn set_presets_menu_custom(params: &mut ae::Parameters<Params>) -> Result<(), ae
     Ok(())
 }
 
-fn gather_params(params: &mut ae::Parameters<Params>) -> Result<(ParamsC,i32), ae::Error> {
+fn gather_params(params: &mut ae::Parameters<Params>, layer_width: f32, layer_height: f32) -> Result<(ParamsC,i32), ae::Error> {
     let mut p=ParamsC::default();
     for (i,key) in [Params::Color1,Params::Color2,Params::Color3,Params::Color4,Params::Color5].into_iter().enumerate() {
         let c=params.get(key)?.as_color()?.float_value()?;
@@ -245,7 +251,11 @@ fn gather_params(params: &mut ae::Parameters<Params>) -> Result<(ParamsC,i32), a
     f!(grain_size_px,Params::GrainSize);
     p.grain_color=(params.get(Params::GrainColor)?.as_float_slider()?.value() as f32)*0.01;
     p.grain_animate=params.get(Params::GrainAnimate)?.as_checkbox()?.value() as u32;
-    f!(diffusion_blur_px,Params::DiffBlur); let cx=params.get(Params::DiffCenterX)?.as_float_slider()?.value() as f32; let cy=params.get(Params::DiffCenterY)?.as_float_slider()?.value() as f32; p.diffusion_center=Point2{x:cx*0.01,y:cy*0.01};
+    f!(diffusion_blur_px,Params::DiffBlur);
+    let center=params.get(Params::DiffCenter)?.as_point()?.value();
+    let w=layer_width.max(1.0);
+    let h=layer_height.max(1.0);
+    p.diffusion_center=Point2{x:center.0/w,y:center.1/h};
     f!(diffusion_focus_px,Params::DiffFocus); f!(diffusion_feather_px,Params::DiffFeather); p.diffusion_invert=params.get(Params::DiffInvert)?.as_checkbox()?.value() as u32;
     let engine=params.get(Params::Engine)?.as_popup()?.value();
     let quality=params.get(Params::Quality)?.as_popup()?.value(); p.quality=if quality<=1{0}else if quality==2{1}else{2};
@@ -257,6 +267,14 @@ fn add_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def:
     params.add_customized(key,name,def,move |pd| {
         pd.set_id(key as i32);
         pd.set_flag(ae::ParamFlag::SUPERVISE,true);
+        -1
+    })
+}
+fn add_hidden_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def: impl Into<ae::Param<'a>>, id: i32) -> Result<(), ae::Error> {
+    if id != key as i32 { return Err(ae::Error::InvalidParms); }
+    params.add_customized(key,name,def,move |pd| {
+        pd.set_id(key as i32);
+        pd.set_ui_flag(ae::ParamUIFlags::INVISIBLE,true);
         -1
     })
 }
@@ -306,7 +324,15 @@ impl AdobePluginGlobal for Plugin {
         add_group(params,Params::TurbTopic,"Turbulence",18,true,true)?; slider!(Params::TurbAmount,"Amount",0.0,500.0,0.0,200.0,40.0,1,19); slider!(Params::TurbSizeX,"Size X",0.1,50.0,0.1,10.0,3.0,2,20); slider!(Params::TurbSizeY,"Size Y",0.1,50.0,0.1,10.0,3.0,2,21); add_id(params,Params::TurbEvolution,"Evolution",ae::AngleDef::setup(|x|{x.set_default(0.0);x.set_value(x.default());}),22)?; slider!(Params::TurbSoftness,"Softness",0.0,1000.0,0.0,200.0,40.0,1,23); add_group(params,Params::TurbEnd,"",24,false,false)?;
         add_group(params,Params::LookTopic,"Look",25,true,true)?; add_group(params,Params::GlowTopic,"Glow",26,true,true)?; slider!(Params::GlowRadius,"Radius",0.0,2000.0,0.0,600.0,194.0,1,27); percent_slider!(Params::GlowFalloff,"Falloff",0.0,100.0,0.0,100.0,50.0,1,28); percent_slider!(Params::GlowThreshold,"Threshold",0.0,100.0,0.0,100.0,0.0,1,29); percent_slider!(Params::GlowIntensity,"Intensity",0.0,400.0,0.0,200.0,160.0,1,30); percent_slider!(Params::GlowSoftClip,"Soft Clip",0.0,100.0,0.0,100.0,0.0,1,31); add_group(params,Params::GlowEnd,"",32,false,false)?;
         add_group(params,Params::GrainTopic,"Grain",33,true,true)?; percent_slider!(Params::GrainAmount,"Amount",0.0,200.0,0.0,200.0,20.0,1,34); slider!(Params::GrainSize,"Size",0.3,5.0,0.3,3.0,1.0,2,35); percent_slider!(Params::GrainColor,"Color",0.0,100.0,0.0,100.0,100.0,1,36); add_id(params,Params::GrainAnimate,"Animate",ae::CheckBoxDef::setup(|x|{x.set_default(true);x.set_value(true);}),37)?; add_group(params,Params::GrainEnd,"",38,false,false)?;
-        add_group(params,Params::DiffTopic,"Optical Diffusion",39,true,true)?; slider!(Params::DiffBlur,"Blur",0.0,2000.0,0.0,500.0,15.0,1,40); slider!(Params::DiffCenterX,"Center X",0.0,100.0,0.0,100.0,50.0,1,41); slider!(Params::DiffCenterY,"Center Y",0.0,100.0,0.0,100.0,50.0,1,42); slider!(Params::DiffFocus,"Focus",0.0,4000.0,0.0,1000.0,50.0,1,43); slider!(Params::DiffFeather,"Feather",0.0,4000.0,0.0,1000.0,450.0,1,44); add_id(params,Params::DiffInvert,"Invert",ae::CheckBoxDef::setup(|x|{x.set_default(false);x.set_value(false);}),45)?; add_group(params,Params::DiffEnd,"",46,false,false)?; add_group(params,Params::LookEnd,"",47,false,false)?;
+        add_group(params,Params::DiffTopic,"Optical Diffusion",39,true,true)?;
+        slider!(Params::DiffBlur,"Blur",0.0,2000.0,0.0,500.0,15.0,1,40);
+        add_hidden_id(params,Params::DiffCenterX,"Center X (legacy)",ae::FloatSliderDef::setup(|x|{x.set_valid_min(0.0);x.set_valid_max(100.0);x.set_slider_min(0.0);x.set_slider_max(100.0);x.set_default(50.0);x.set_precision(1);x.set_value(x.default());}),41)?;
+        add_hidden_id(params,Params::DiffCenterY,"Center Y (legacy)",ae::FloatSliderDef::setup(|x|{x.set_valid_min(0.0);x.set_valid_max(100.0);x.set_slider_min(0.0);x.set_slider_max(100.0);x.set_default(50.0);x.set_precision(1);x.set_value(x.default());}),42)?;
+        add_id(params,Params::DiffCenter,"Center",ae::PointDef::setup(|x|{x.set_default((50.0,50.0));x.set_value(x.default());}),52)?;
+        slider!(Params::DiffFocus,"Focus",0.0,4000.0,0.0,1000.0,50.0,1,43);
+        slider!(Params::DiffFeather,"Feather",0.0,4000.0,0.0,1000.0,450.0,1,44);
+        add_id(params,Params::DiffInvert,"Invert",ae::CheckBoxDef::setup(|x|{x.set_default(false);x.set_value(false);}),45)?;
+        add_group(params,Params::DiffEnd,"",46,false,false)?; add_group(params,Params::LookEnd,"",47,false,false)?;
         add_id(params,Params::Engine,"Render Engine",ae::PopupDef::setup(|x|{x.set_options(&["Auto","GPU","CPU"]);x.set_default(1);x.set_value(1);}),48)?;
         add_id(params,Params::Quality,"Quality",ae::PopupDef::setup(|x|{x.set_options(&["Preview","Auto","Final"]);x.set_default(2);x.set_value(2);}),49)?;
         Ok(())
@@ -314,12 +340,12 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.1\rFull Cosmic preset state + Metal + CPU SmartFX"),
+            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.2\rNative Cosmic Center + full preset state + Metal + CPU SmartFX"),
             ae::Command::UserChangedParam { param_index } => {
                 match params.type_at(param_index) {
                     Params::Presets => {
                         let which=params.get(Params::Presets)?.as_popup()?.value();
-                        apply_cosmic_preset(params,which)?;
+                        apply_cosmic_preset(params,which,in_data.width() as f32,in_data.height() as f32)?;
                         out_data.set_out_flag(ae::OutFlags::RefreshUi,true);
                     }
                     Params::Color1 | Params::Color2 | Params::Color3 | Params::Color4 | Params::Color5 |
@@ -328,7 +354,7 @@ impl AdobePluginGlobal for Plugin {
                     Params::TurbAmount | Params::TurbSizeX | Params::TurbSizeY | Params::TurbEvolution | Params::TurbSoftness |
                     Params::GlowRadius | Params::GlowFalloff | Params::GlowThreshold | Params::GlowIntensity | Params::GlowSoftClip |
                     Params::GrainAmount | Params::GrainSize | Params::GrainColor | Params::GrainAnimate |
-                    Params::DiffBlur | Params::DiffCenterX | Params::DiffCenterY | Params::DiffFocus | Params::DiffFeather | Params::DiffInvert => {
+                    Params::DiffBlur | Params::DiffCenter | Params::DiffFocus | Params::DiffFeather | Params::DiffInvert => {
                         set_presets_menu_custom(params)?;
                         out_data.set_out_flag(ae::OutFlags::RefreshUi,true);
                     }
@@ -341,7 +367,7 @@ impl AdobePluginGlobal for Plugin {
                 out_data.set_out_flag(ae::OutFlags::NonParamVary, animate && amount>1.0e-6);
             }
             ae::Command::SmartPreRender { mut extra } => {
-                let (mut p,engine)=gather_params(params)?;
+                let (mut p,engine)=gather_params(params,in_data.width() as f32,in_data.height() as f32)?;
                 unsafe { sg_prepare_params(&mut p, f32::from(in_data.downsample_x()), f32::from(in_data.downsample_y())); }
                 let requested=rect_from_raw(extra.output_request().rect);
                 let dep=unsafe { sg_dependency_rect(&p,requested) };
