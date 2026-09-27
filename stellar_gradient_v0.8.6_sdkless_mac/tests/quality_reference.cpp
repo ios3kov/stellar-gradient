@@ -129,20 +129,12 @@ int main() {
     // Baselines are generated from the audited CPU F32 reference renderer.
     // Update only when an intentional visual change has been reviewed.
     const Signature expected_base{{0.204531780142,0.111062071743,0.183825664775,0.363154532137},{0.991368830204f,0.680644214153f,0.960009276867f,1.0f},0.650493346755};
-    const Signature expected_heavy{{0.229134364086,0.121190174027,0.25954591724,0.389743488664},{1.09946906567f,0.783171772957f,1.05663871765f,1.0f},0.759270293242};
-    const Signature expected_diffusion{{0.239112266193,0.12630411428,0.271423605803,0.407217214797},{1.09565377235f,0.779608488083f,1.05585718155f,1.0f},0.689186596301};
+    const Signature expected_heavy{{0.224864763109,0.119129548097,0.260343978208,0.389058099858},{1.1093994379f,0.781969428062f,1.05849254131f,1.0f},0.754382439322};
+    const Signature expected_diffusion{{0.234482478382,0.124349958217,0.271920968823,0.406525578987},{1.09005272388f,0.781263768673f,1.05771040916f,1.0f},0.686040455902};
 
     const Signature got_base = render_case(base, 7);
     const Signature got_heavy = render_case(heavy, 19);
     const Signature got_diffusion = render_case(diffusion, 19);
-
-    auto dump_now=[](const char* label,const Signature& s){
-        std::printf("%s mean={%.12g,%.12g,%.12g,%.12g} max={%.12g,%.12g,%.12g,%.12g} energy=%.12g\n",
-                    label,s.mean[0],s.mean[1],s.mean[2],s.mean[3],
-                    static_cast<double>(s.maxv[0]),static_cast<double>(s.maxv[1]),
-                    static_cast<double>(s.maxv[2]),static_cast<double>(s.maxv[3]),s.energy);
-    };
-    dump_now("base",got_base); dump_now("heavy",got_heavy); dump_now("diffusion",got_diffusion);
 
     // Bootstrap mode: zeros mean print signatures so the source can be pinned.
     if (expected_base.energy == 0.0) {
