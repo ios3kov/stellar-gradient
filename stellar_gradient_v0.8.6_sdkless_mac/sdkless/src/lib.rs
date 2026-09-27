@@ -437,3 +437,32 @@ pub extern "C" fn AEHotLoader_ImplementationLabel(
     }
     0
 }
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_ImplementationABI() -> u32 {
+    1
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_ImplementationStateABI() -> u64 {
+    1
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_ImplementationKey(
+    output: *mut c_char,
+    output_capacity: usize,
+) -> i32 {
+    if output.is_null() || output_capacity == 0 {
+        return -1;
+    }
+    const KEY: &str = "stellar-gradient";
+    let bytes = KEY.as_bytes();
+    let count = bytes.len().min(output_capacity.saturating_sub(1));
+    unsafe {
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), output.cast::<u8>(), count);
+        *output.add(count) = 0;
+    }
+    0
+}
