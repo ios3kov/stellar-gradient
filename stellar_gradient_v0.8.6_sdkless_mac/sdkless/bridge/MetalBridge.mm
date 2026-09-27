@@ -9,10 +9,12 @@
 
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
+#import <MetalPerformanceShaders/MetalPerformanceShaders.h>
 
 namespace {
 
 struct SGMetalContext {
+    id<MTLComputePipelineState> depth = nil;
     id<MTLComputePipelineState> base = nil;
     id<MTLComputePipelineState> base_out = nil;
     id<MTLComputePipelineState> base_glow = nil;
@@ -33,6 +35,7 @@ id<MTLComputePipelineState> make_pipeline(id<MTLDevice> d, id<MTLLibrary> l, con
 
 void release_context(SGMetalContext* g) {
     if(!g) return;
+    if(g->depth)[g->depth release];
     if(g->base)[g->base release];
     if(g->base_out)[g->base_out release];
     if(g->base_glow)[g->base_glow release];
@@ -96,6 +99,7 @@ void* sg_metal_create(void* mtl_device, int32_t* supports_f32_filtering) {
     [options release];
     if(!lib){ release_context(g); [pool drain]; return nullptr; }
 
+    g->depth=make_pipeline(dev,lib,"SGDepthKernel",&error);
     g->base=make_pipeline(dev,lib,"SGBaseKernel",&error);
     g->base_out=make_pipeline(dev,lib,"SGBaseOutKernel",&error);
     g->base_glow=make_pipeline(dev,lib,"SGBaseGlowKernel",&error);
@@ -104,7 +108,7 @@ void* sg_metal_create(void* mtl_device, int32_t* supports_f32_filtering) {
     g->diffusion_out=make_pipeline(dev,lib,"SGDiffusionOutKernel",&error);
     [lib release];
 
-    if(!g->base||!g->base_out||!g->base_glow||!g->compose_in_place||!g->compose_out||!g->diffusion_out) {
+    if(!g->depth||!g->base||!g->base_out||!g->base_glow||!g->compose_in_place||!g->compose_out||!g->diffusion_out) {
         release_context(g); [pool drain]; return nullptr;
     }
     if(supports_f32_filtering) *supports_f32_filtering=g->supports_f32_filtering?1:0;
@@ -127,7 +131,7 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
     id<MTLDevice> dev=queue.device;
     id<MTLBuffer> src=(id<MTLBuffer>)input_buffer;
     id<MTLBuffer> dst=(id<MTLBuffer>)output_buffer;
-    id<MTLTexture> base=nil,glow=nil;
+    id<MTLTexture> base=nil,glow=nil,depth=nil,depth_tmp=nil;
     int32_t rc=0;
 
     do {
@@ -143,9 +147,35 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
         id<MTLCommandBuffer> cb=[queue commandBuffer];
         if(!cb){ rc=-3; break; }
 
+        depth=make_texture(dev,work_w,work_h,1,MTLPixelFormatR32Float); if(!depth){ rc=-2; break; }
+        depth_tmp=make_texture(dev,work_w,work_h,1,MTLPixelFormatR32Float); if(!depth_tmp){ rc=-2; break; }
+
+        id<MTLComputeCommandEncoder> depth_encoder=[cb computeCommandEncoder]; if(!depth_encoder){ rc=-3; break; }
+        [depth_encoder setComputePipelineState:g->depth];
+        [depth_encoder setBuffer:src offset:0 atIndex:0];
+        [depth_encoder setTexture:depth atIndex:0];
+        [depth_encoder setBytes:&gp length:sizeof(gp) atIndex:1];
+        encode_2d(depth_encoder,g->depth,(NSUInteger)work_w,(NSUInteger)work_h);
+        [depth_encoder endEncoding];
+
+        if(gp.depth_enabled!=0u) {
+            const float rounding_radius=static_cast<float>(std::min(work_w,work_h))*0.0875f*std::clamp(p.rounding,0.0f,1.0f);
+            if(rounding_radius>=0.5f) {
+                const int pass_radius=std::max(1,(int)std::lround(rounding_radius/3.0f));
+                const NSUInteger kernel=(NSUInteger)(pass_radius*2+1);
+                MPSImageBox* box=[[MPSImageBox alloc] initWithDevice:dev kernelWidth:kernel kernelHeight:kernel];
+                box.edgeMode=MPSImageEdgeModeClamp;
+                for(int pass=0;pass<3;++pass) {
+                    [box encodeToCommandBuffer:cb sourceTexture:depth destinationTexture:depth_tmp];
+                    id<MTLTexture> swap=depth; depth=depth_tmp; depth_tmp=swap;
+                }
+                [box release];
+            }
+        }
+
         if(!plan.glow&&!plan.diffusion&&work_w==ow&&work_h==oh&&gp.crop_x==0&&gp.crop_y==0) {
             id<MTLComputeCommandEncoder> e=[cb computeCommandEncoder]; if(!e){ rc=-3; break; }
-            [e setComputePipelineState:g->base_out]; [e setBuffer:src offset:0 atIndex:0]; [e setBuffer:dst offset:0 atIndex:1]; [e setBytes:&gp length:sizeof(gp) atIndex:2];
+            [e setComputePipelineState:g->base_out]; [e setBuffer:src offset:0 atIndex:0]; [e setBuffer:dst offset:0 atIndex:1]; [e setTexture:depth atIndex:0]; [e setBytes:&gp length:sizeof(gp) atIndex:2];
             encode_2d(e,g->base_out,(NSUInteger)ow,(NSUInteger)oh); [e endEncoding]; [cb commit];
             break;
         }
@@ -157,10 +187,10 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
 
         id<MTLComputeCommandEncoder> e=[cb computeCommandEncoder]; if(!e){ rc=-3; break; }
         if(plan.glow) {
-            [e setComputePipelineState:g->base_glow]; [e setBuffer:src offset:0 atIndex:0]; [e setTexture:base atIndex:0]; [e setTexture:glow atIndex:1]; [e setBytes:&gp length:sizeof(gp) atIndex:1];
+            [e setComputePipelineState:g->base_glow]; [e setBuffer:src offset:0 atIndex:0]; [e setTexture:base atIndex:0]; [e setTexture:glow atIndex:1]; [e setTexture:depth atIndex:2]; [e setBytes:&gp length:sizeof(gp) atIndex:1];
             encode_2d(e,g->base_glow,(NSUInteger)work_w,(NSUInteger)work_h);
         } else {
-            [e setComputePipelineState:g->base]; [e setBuffer:src offset:0 atIndex:0]; [e setTexture:base atIndex:0]; [e setBytes:&gp length:sizeof(gp) atIndex:1];
+            [e setComputePipelineState:g->base]; [e setBuffer:src offset:0 atIndex:0]; [e setTexture:base atIndex:0]; [e setTexture:depth atIndex:1]; [e setBytes:&gp length:sizeof(gp) atIndex:1];
             encode_2d(e,g->base,(NSUInteger)work_w,(NSUInteger)work_h);
         }
         [e endEncoding];
@@ -184,6 +214,7 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
         [cb commit];
     } while(false);
 
+    if(depth_tmp)[depth_tmp release]; if(depth)[depth release];
     if(glow)[glow release]; if(base)[base release];
     [pool drain];
     return rc;

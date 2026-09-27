@@ -52,6 +52,7 @@ fn main() {
         native.file(root.join("bridge/MetalBridge.mm"));
         println!("cargo:rustc-link-lib=framework=Foundation");
         println!("cargo:rustc-link-lib=framework=Metal");
+        println!("cargo:rustc-link-lib=framework=MetalPerformanceShaders");
         println!("cargo:rustc-link-lib=c++");
     } else {
         println!("cargo:rustc-link-lib=stdc++");

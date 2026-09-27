@@ -132,7 +132,11 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                     const float dx = static_cast<float>(x) - cx;
                     const float dy = static_cast<float>(y) - cy;
                     const float ramp = clamp01(0.5f + 0.5f * (dx * depth_dir_x + dy * depth_dir_y) * depth_inv_diag);
-                    g_workspace.depth_a[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)] = alpha * ramp;
+                    float depth = alpha * ramp;
+                    if (alpha > 0.0f && std::abs(q.depth_contrast - 1.0f) > 1.0e-3f) {
+                        depth = alpha * clamp01((depth - 0.5f) * q.depth_contrast + 0.5f);
+                    }
+                    g_workspace.depth_a[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)] = depth;
                 }
             }
         });
@@ -180,10 +184,7 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                 }
 
                 if (depth_active) {
-                    float depth = depth_map[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)];
-                    if (alpha > 0.0f && std::abs(q.depth_contrast - 1.0f) > 1.0e-3f) {
-                        depth = alpha * clamp01((depth - 0.5f) * q.depth_contrast + 0.5f);
-                    }
+                    const float depth = depth_map[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)];
                     u += depth * q.bulge;
                 }
 

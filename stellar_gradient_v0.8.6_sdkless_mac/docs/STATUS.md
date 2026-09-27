@@ -255,3 +255,13 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - If sigma > 0.5, radius = max(1, round(sigma/3)); exactly three horizontal+vertical box-blur pairs are applied.
 - Contrast is applied after the rounded depth map, then Bulge offsets the gradient coordinate.
 - CPU implementation landed first so core golden signatures can validate the recovered algorithm before the same pass graph is added to Metal.
+
+
+### Exact Cosmic Rounding — CPU + Metal
+
+- Verified against user-supplied Cosmic.aex SHA-256 b1b55fc6f0795dad45dfd1e79bfd180eb6d881519aade4250bd6416d737a3ea8.
+- Exact host formula: R = min(width,height) * 0.125 * 0.7 * Rounding.
+- For R >= 0.5: pass radius = max(1,lroundf(R/3)); exactly three H/V box-blur pairs.
+- DepthKernel precedes this blur path, so directional depth + Contrast are generated first; Rounding blurs that depth map; Bulge is applied during colorization.
+- CPU keeps the MFR-safe sequential box implementation.
+- Metal uses a separate R32F depth texture and three MPSImageBox passes with clamp edges and the identical odd kernel diameter.
