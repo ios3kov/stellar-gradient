@@ -265,3 +265,12 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - DepthKernel precedes this blur path, so directional depth + Contrast are generated first; Rounding blurs that depth map; Bulge is applied during colorization.
 - CPU keeps the MFR-safe sequential box implementation.
 - Metal uses a separate R32F depth texture and three MPSImageBox passes with clamp edges and the identical odd kernel diameter.
+
+
+### Cosmic palette behavior correction — v0.9.4
+
+- Re-verified USER_CHANGED_PARAM in the user-supplied Cosmic.aex.
+- Built-in palette selection changes only Color 1..5.
+- Removed Stellar's incorrect behavior that reset Angle/Cycles/Offset/Phase, Depth, Turbulence, Glow, Grain and Optical Diffusion whenever a palette was selected.
+- Non-color parameters now remain untouched when switching palettes, matching the original binary.
+- Manual Color 1..5 edits still switch the menu to Custom.
