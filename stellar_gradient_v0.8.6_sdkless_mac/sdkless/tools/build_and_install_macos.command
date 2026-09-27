@@ -138,10 +138,16 @@ PKG="$TARGET/$TRIPLE/release/stellar_gradient_host_PkgInfo"
 PLIST="$TARGET/$TRIPLE/release/stellar_gradient_host_Info.plist"
 for f in "$BIN" "$RSRC" "$PKG" "$PLIST"; do [[ -f "$f" ]] || { echo "ERROR: missing build output $f"; exit 3; }; done
 
-echo "[6/8] Bundle + local signing"
+echo "[6/8] Bundle hot-reload shell + local signing"
+SHELL_BIN="$TARGET/$TRIPLE/release/StellarGradientShell"
+xcrun clang++ -std=c++17 -O2 -arch arm64 -dynamiclib -fvisibility=hidden \
+  "$ROOT/sdkless/shell/StellarGradientShell.cpp" \
+  -o "$SHELL_BIN"
+
 rm -rf "$BUNDLE"
-mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
-cp "$BIN" "$BUNDLE/Contents/MacOS/StellarGradient"
+mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Frameworks" "$BUNDLE/Contents/Resources"
+cp "$SHELL_BIN" "$BUNDLE/Contents/MacOS/StellarGradient"
+cp "$BIN" "$BUNDLE/Contents/Frameworks/StellarGradientImpl.dylib"
 cp "$RSRC" "$BUNDLE/Contents/Resources/StellarGradient.rsrc"
 cp "$PKG" "$BUNDLE/Contents/PkgInfo"
 cp "$PLIST" "$BUNDLE/Contents/Info.plist"
@@ -149,10 +155,12 @@ cp "$PLIST" "$BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName "Stellar Gradient"' "$BUNDLE/Contents/Info.plist" || true
 xattr -dr com.apple.quarantine "$BUNDLE" 2>/dev/null || true
+codesign --force --sign - "$BUNDLE/Contents/Frameworks/StellarGradientImpl.dylib"
 codesign --force --deep --options runtime --sign - "$BUNDLE"
 codesign --verify --deep --strict "$BUNDLE"
 file "$BUNDLE/Contents/MacOS/StellarGradient"
-nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2'
+nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2|AEHotLoader_ShellReload'
+nm -gU "$BUNDLE/Contents/Frameworks/StellarGradientImpl.dylib" | grep -E 'EffectMain|AEHotLoader_ImplementationLabel'
 plutil -lint "$BUNDLE/Contents/Info.plist"
 
 echo "[7/8] Install"
