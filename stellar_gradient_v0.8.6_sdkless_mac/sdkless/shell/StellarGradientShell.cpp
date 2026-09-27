@@ -229,6 +229,15 @@ std::string RuntimeCopyPath(const std::string& source) {
     return destination.string();
 }
 
+
+void DiscardCandidate(void* handle, const std::string& runtime_path) {
+    if (handle) {
+        dlclose(handle);
+    }
+    std::error_code remove_error;
+    std::filesystem::remove(runtime_path, remove_error);
+}
+
 int LoadImplementationFromSourceLocked(
     const std::string& source,
     bool force,
@@ -268,6 +277,7 @@ int LoadImplementationFromSourceLocked(
         if (detail) {
             *detail = std::string("dlopen failed: ") + (error ? error : "unknown");
         }
+        DiscardCandidate(nullptr, runtime_path);
         return -4104;
     }
 
@@ -277,7 +287,7 @@ int LoadImplementationFromSourceLocked(
         if (detail) {
             *detail = std::string("EffectMain missing: ") + (error ? error : "unknown");
         }
-        g_loaded_handles.push_back(handle);
+        DiscardCandidate(handle, runtime_path);
         return -4105;
     }
 
@@ -287,16 +297,18 @@ int LoadImplementationFromSourceLocked(
         dlsym(handle, "AEHotLoader_ImplementationStateABI"));
     auto key_fn = reinterpret_cast<ImplKeyFn>(
         dlsym(handle, "AEHotLoader_ImplementationKey"));
+    auto label_fn = reinterpret_cast<ImplLabelFn>(
+        dlsym(handle, "AEHotLoader_ImplementationLabel"));
 
-    if (!abi_fn || !state_abi_fn || !key_fn) {
+    if (!abi_fn || !state_abi_fn || !key_fn || !label_fn) {
         if (detail) *detail = "Implementation hot-reload ABI exports are missing.";
-        g_loaded_handles.push_back(handle);
+        DiscardCandidate(handle, runtime_path);
         return -4108;
     }
 
     if (abi_fn() != kImplementationAbi) {
         if (detail) *detail = "Implementation protocol ABI mismatch.";
-        g_loaded_handles.push_back(handle);
+        DiscardCandidate(handle, runtime_path);
         return -4109;
     }
 
@@ -305,7 +317,7 @@ int LoadImplementationFromSourceLocked(
             *detail =
                 "Implementation state/schema ABI mismatch; AE restart with a rebuilt shell is required.";
         }
-        g_loaded_handles.push_back(handle);
+        DiscardCandidate(handle, runtime_path);
         return -4110;
     }
 
@@ -317,19 +329,17 @@ int LoadImplementationFromSourceLocked(
                       kImplementationKey + ", got " +
                       (key_buffer[0] ? key_buffer : "(invalid)");
         }
-        g_loaded_handles.push_back(handle);
+        DiscardCandidate(handle, runtime_path);
         return -4111;
     }
 
-    std::string implementation_label = "(unknown)";
-    auto label_fn = reinterpret_cast<ImplLabelFn>(
-        dlsym(handle, "AEHotLoader_ImplementationLabel"));
-    if (label_fn) {
-        char label_buffer[256]{};
-        if (label_fn(label_buffer, sizeof(label_buffer)) == 0 && label_buffer[0] != '\0') {
-            implementation_label = label_buffer;
-        }
+    char label_buffer[256]{};
+    if (label_fn(label_buffer, sizeof(label_buffer)) != 0 || label_buffer[0] == '\0') {
+        if (detail) *detail = "Implementation label is invalid.";
+        DiscardCandidate(handle, runtime_path);
+        return -4113;
     }
+    const std::string implementation_label(label_buffer);
 
     // Quiescent swap: let already-running MFR/render calls finish and prevent
     // a mix of old/new implementation code from touching the same AE state.
@@ -340,9 +350,7 @@ int LoadImplementationFromSourceLocked(
                 true,
                 std::memory_order_acq_rel,
                 std::memory_order_acquire)) {
-            dlclose(handle);
-            std::error_code remove_error;
-            std::filesystem::remove(runtime_path, remove_error);
+            DiscardCandidate(handle, runtime_path);
             if (detail) {
                 *detail = "Another implementation swap is already pending; retry Reload Plugins.";
             }
@@ -352,9 +360,7 @@ int LoadImplementationFromSourceLocked(
         SwapPendingGuard swap_guard(true);
 
         if (g_active_calls.load(std::memory_order_acquire) != 0) {
-            dlclose(handle);
-            std::error_code remove_error;
-            std::filesystem::remove(runtime_path, remove_error);
+            DiscardCandidate(handle, runtime_path);
             if (detail) {
                 *detail = "Effect is busy with an in-flight call; retry Reload Plugins.";
             }
