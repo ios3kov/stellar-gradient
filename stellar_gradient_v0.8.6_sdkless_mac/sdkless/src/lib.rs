@@ -116,20 +116,23 @@ fn rect_to_raw(r: RectC) -> ae::sys::PF_LRect { ae::sys::PF_LRect { left: r.left
 fn rect_to_ae(r: RectC) -> ae::Rect { ae::Rect { left: r.left, top: r.top, right: r.right, bottom: r.bottom } }
 
 fn palette_colors(which: i32) -> Option<[[u8; 3]; 5]> {
-    const PRESETS: [[[u8; 3]; 5]; 10] = [
-        [[255,33,61],[255,107,26],[255,227,41],[61,242,189],[36,94,255]],       // Retro Pop
-        [[18,38,20],[46,97,43],[107,158,51],[199,201,92],[237,224,166]],       // Sage
-        [[48,20,38],[117,46,79],[186,89,122],[235,145,158],[255,204,186]],    // Blush
-        [[4,3,10],[18,10,41],[46,18,79],[92,31,130],[173,64,194]],            // Deep Space
-        [[5,28,61],[0,117,209],[0,235,237],[133,255,117],[255,232,23]],       // Electric
-        [[13,3,36],[71,8,135],[161,15,227],[245,51,199],[92,176,255]],        // Ultraviolet
-        [[0,41,61],[0,120,156],[0,199,196],[94,245,199],[204,255,235]],       // Lagoon
-        [[56,10,3],[150,33,5],[235,92,10],[255,168,31],[255,232,122]],        // Sunset
-        [[255,26,69],[255,135,26],[250,235,31],[26,212,140],[20,110,255]],    // Pride Rainbow
-        [[107,46,242],[209,77,255],[255,110,186],[255,168,112],[115,232,255]],// Candy
+    // Values recovered from the observable Cosmic palette controls.
+    // Cold uses Cosmic's five editable knot colors; the closing loop repeats Color 1.
+    const PRESETS: [[[u8; 3]; 5]; 11] = [
+        [[3,5,20],[8,46,133],[26,140,235],[115,217,255],[235,252,255]],        // Cold
+        [[217,11,49],[247,197,206],[201,177,139],[38,139,126],[23,50,134]],    // Retro Pop
+        [[242,239,245],[84,116,117],[168,190,189],[6,36,35],[99,136,114]],    // Sage
+        [[251,255,255],[235,201,192],[212,131,146],[183,55,54],[207,170,125]],// Blush
+        [[40,13,140],[55,17,191],[24,14,89],[7,12,38],[242,75,75]],           // Deep Space
+        [[212,140,242],[56,65,242],[61,88,242],[61,121,242],[126,231,242]],  // Electric
+        [[128,0,128],[169,0,114],[213,0,72],[234,0,36],[255,0,0]],           // Ultraviolet
+        [[196,225,255],[4,102,191],[3,159,218],[5,193,72],[1,113,41]],       // Lagoon
+        [[242,183,5],[242,135,5],[242,92,5],[89,2,2],[255,60,60]],           // Sunset
+        [[226,7,20],[234,90,13],[255,220,14],[11,152,58],[14,64,148]],       // Pride Rainbow
+        [[244,5,64],[3,74,166],[253,194,222],[255,120,58],[255,202,0]],      // Candy
     ];
-    if (2..=11).contains(&which) {
-        Some(PRESETS[(which - 2) as usize])
+    if (1..=11).contains(&which) {
+        Some(PRESETS[(which - 1) as usize])
     } else {
         None
     }
@@ -153,11 +156,11 @@ fn apply_palette_to_color_params(params: &mut ae::Parameters<Params>, which: i32
 
 fn set_presets_menu_custom(params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
     let mut def = params.get_mut(Params::Presets)?;
-    let is_custom = def.as_popup()?.value() == 1;
+    let is_custom = def.as_popup()?.value() == 13;
     if !is_custom {
         {
             let mut popup = def.as_popup_mut()?;
-            popup.set_value(1);
+            popup.set_value(13);
         }
         def.set_value_changed();
     }
@@ -220,10 +223,10 @@ impl AdobePluginGlobal for Plugin {
             add_id(params,$key,$name,ae::FloatSliderDef::setup(|x|{x.set_valid_min($vmin);x.set_valid_max($vmax);x.set_slider_min($smin);x.set_slider_max($smax);x.set_default($d);x.set_precision($prec);x.set_value(x.default());x.set_display_flags(ae::ValueDisplayFlag::PERCENT);}),$id)?;
         }}; }
         add_group(params,Params::PaletteTopic,"Palette",50,true,false)?;
-        add_supervised_id(params,Params::Presets,"Presets",ae::PopupDef::setup(|x|{x.set_options(&["Custom","Retro Pop","Sage","Blush","Deep Space","Electric","Ultraviolet","Lagoon","Sunset","Pride Rainbow","Candy"]);x.set_default(1);x.set_value(1);}),1)?;
+        add_supervised_id(params,Params::Presets,"Presets",ae::PopupDef::setup(|x|{x.set_options(&["Cold","Retro Pop","Sage","Blush","Deep Space","Electric","Ultraviolet","Lagoon","Sunset","Pride Rainbow","Candy","(-","Custom"]);x.set_default(5);x.set_value(5);}),1)?;
         for (key,name,rgba,id) in [
-            (Params::Color1,"Color 1",[31,13,87,255],2),(Params::Color2,"Color 2",[31,97,242,255],3),(Params::Color3,"Color 3",[170,43,242,255],4),
-            (Params::Color4,"Color 4",[255,79,140,255],5),(Params::Color5,"Color 5",[255,191,46,255],6)
+            (Params::Color1,"Color 1",[40,13,140,255],2),(Params::Color2,"Color 2",[55,17,191,255],3),(Params::Color3,"Color 3",[24,14,89,255],4),
+            (Params::Color4,"Color 4",[7,12,38,255],5),(Params::Color5,"Color 5",[242,75,75,255],6)
         ] { add_supervised_id(params,key,name,ae::ColorDef::setup(|x|{let c=ae::Pixel8{red:rgba[0],green:rgba[1],blue:rgba[2],alpha:rgba[3]};x.set_default(c);x.set_value(c);}),id)?; }
         add_group(params,Params::PaletteEnd,"",51,false,false)?;
         add_id(params,Params::Angle,"Angle",ae::AngleDef::setup(|x|{x.set_default(90.0);x.set_value(x.default());}),7)?;
@@ -231,13 +234,13 @@ impl AdobePluginGlobal for Plugin {
         percent_slider!(Params::Offset,"Offset",-100.0,100.0,-100.0,100.0,0.0,1,9);
         add_id(params,Params::Phase,"Phase",ae::AngleDef::setup(|x|{x.set_default(0.0);x.set_value(x.default());}),10)?;
         slider!(Params::Saturation,"Saturation",0.0,2.0,0.0,2.0,1.0,2,11); slider!(Params::Brightness,"Brightness",0.0,4.0,0.0,2.0,1.0,2,12);
-        add_group(params,Params::DepthTopic,"Depth",13,true,false)?;
+        add_group(params,Params::DepthTopic,"Depth",13,true,true)?;
         percent_slider!(Params::Contrast,"Contrast",0.0,400.0,0.0,200.0,100.0,1,14);
         percent_slider!(Params::Bulge,"Bulge",-200.0,200.0,-100.0,100.0,60.0,1,15);
         percent_slider!(Params::Rounding,"Rounding",0.0,100.0,0.0,100.0,100.0,1,16);
         add_group(params,Params::DepthEnd,"",17,false,false)?;
         add_group(params,Params::TurbTopic,"Turbulence",18,true,true)?; slider!(Params::TurbAmount,"Amount",0.0,2.0,0.0,1.0,0.0,2,19); slider!(Params::TurbSizeX,"Size X",1.0,2000.0,1.0,500.0,120.0,1,20); slider!(Params::TurbSizeY,"Size Y",1.0,2000.0,1.0,500.0,120.0,1,21); slider!(Params::TurbEvolution,"Evolution",-100000.0,100000.0,-360.0,360.0,0.0,2,22); slider!(Params::TurbSoftness,"Softness",0.0,1.0,0.0,1.0,0.5,2,23); add_group(params,Params::TurbEnd,"",24,false,false)?;
-        add_group(params,Params::LookTopic,"Look",25,true,false)?; add_group(params,Params::GlowTopic,"Glow",26,true,true)?; slider!(Params::GlowRadius,"Radius",0.0,2000.0,0.0,500.0,60.0,1,27); slider!(Params::GlowFalloff,"Falloff",0.25,4.0,0.25,4.0,1.6,2,28); slider!(Params::GlowThreshold,"Threshold",0.0,1.0,0.0,1.0,0.2,2,29); slider!(Params::GlowIntensity,"Intensity",0.0,10.0,0.0,3.0,0.8,2,30); slider!(Params::GlowSoftClip,"Soft Clip",0.0,1.0,0.0,1.0,0.25,2,31); add_group(params,Params::GlowEnd,"",32,false,false)?;
+        add_group(params,Params::LookTopic,"Look",25,true,true)?; add_group(params,Params::GlowTopic,"Glow",26,true,true)?; slider!(Params::GlowRadius,"Radius",0.0,2000.0,0.0,500.0,60.0,1,27); slider!(Params::GlowFalloff,"Falloff",0.25,4.0,0.25,4.0,1.6,2,28); slider!(Params::GlowThreshold,"Threshold",0.0,1.0,0.0,1.0,0.2,2,29); slider!(Params::GlowIntensity,"Intensity",0.0,10.0,0.0,3.0,0.8,2,30); slider!(Params::GlowSoftClip,"Soft Clip",0.0,1.0,0.0,1.0,0.25,2,31); add_group(params,Params::GlowEnd,"",32,false,false)?;
         add_group(params,Params::GrainTopic,"Grain",33,true,true)?; slider!(Params::GrainAmount,"Amount",0.0,0.5,0.0,0.15,0.03,3,34); slider!(Params::GrainSize,"Size",0.5,16.0,0.5,8.0,1.0,2,35); slider!(Params::GrainColor,"Color",0.0,1.0,0.0,1.0,0.0,2,36); add_id(params,Params::GrainAnimate,"Animate",ae::CheckBoxDef::setup(|x|{x.set_default(true);x.set_value(true);}),37)?; add_group(params,Params::GrainEnd,"",38,false,false)?;
         add_group(params,Params::DiffTopic,"Optical Diffusion",39,true,true)?; slider!(Params::DiffBlur,"Blur",0.0,2000.0,0.0,500.0,0.0,1,40); slider!(Params::DiffCenterX,"Center X",0.0,100.0,0.0,100.0,50.0,1,41); slider!(Params::DiffCenterY,"Center Y",0.0,100.0,0.0,100.0,50.0,1,42); slider!(Params::DiffFocus,"Focus",0.0,4000.0,0.0,1000.0,120.0,1,43); slider!(Params::DiffFeather,"Feather",0.0,4000.0,0.0,1000.0,200.0,1,44); add_id(params,Params::DiffInvert,"Invert",ae::CheckBoxDef::setup(|x|{x.set_default(false);x.set_value(false);}),45)?; add_group(params,Params::DiffEnd,"",46,false,false)?; add_group(params,Params::LookEnd,"",47,false,false)?;
         add_id(params,Params::Engine,"Render Engine",ae::PopupDef::setup(|x|{x.set_options(&["Auto","GPU","CPU"]);x.set_default(1);x.set_value(1);}),48)?;
@@ -247,7 +250,7 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.8.8\rOriginal-style controls + presets + Metal + CPU SmartFX"),
+            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.8.9\rCosmic-matched palette controls + collapsed groups + Metal + CPU SmartFX"),
             ae::Command::UserChangedParam { param_index } => {
                 match params.type_at(param_index) {
                     Params::Presets => {
