@@ -11,7 +11,7 @@ compile_error!("smart_render cfg missing: SmartFX host contract is not active");
 compile_error!("gpu_render cfg missing: GPU selectors are not active");
 #[cfg(not(catch_panics))]
 compile_error!("catch_panics cfg missing: release FFI panic boundary is not active");
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void};
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -415,4 +415,49 @@ mod tests {
         assert_eq!(std::mem::offset_of!(RenderStateC, time_seconds), 248);
         assert_eq!(std::mem::offset_of!(RenderStateC, engine_mode), 260);
     }
+}
+
+
+const HOT_RELOAD_IMPL_LABEL: &str = match option_env!("AE_HOT_LOADER_IMPL_LABEL") {
+    Some(value) => value,
+    None => "stellar-gradient-dev",
+};
+
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_ImplementationABI() -> u32 {
+    1
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_ImplementationStateABI() -> u64 {
+    1
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_ImplementationKey(
+    output: *mut c_char,
+    output_capacity: usize,
+) -> i32 {
+    write_hot_reload_string("stellar-gradient", output, output_capacity)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_ImplementationLabel(
+    output: *mut c_char,
+    output_capacity: usize,
+) -> i32 {
+    write_hot_reload_string(HOT_RELOAD_IMPL_LABEL, output, output_capacity)
+}
+
+fn write_hot_reload_string(value: &str, output: *mut c_char, output_capacity: usize) -> i32 {
+    if output.is_null() || output_capacity == 0 {
+        return -1;
+    }
+    let bytes = value.as_bytes();
+    let count = bytes.len().min(output_capacity.saturating_sub(1));
+    unsafe {
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), output.cast::<u8>(), count);
+        *output.add(count) = 0;
+    }
+    0
 }
