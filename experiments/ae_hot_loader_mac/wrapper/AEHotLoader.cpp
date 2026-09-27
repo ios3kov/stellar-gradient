@@ -41,6 +41,8 @@ using CoreEffectMainFn = PF_Err (*)(
 
 using CoreSetRegisterFn = void (*)(void*);
 
+extern "C" A_Err AEHotLoader_RegisterLateEffect();
+
 namespace {
 
 constexpr A_long FourCC(char a, char b, char c, char d) {
@@ -116,7 +118,6 @@ void LoadCore() {
             return;
         }
 
-        extern A_Err AEHotLoader_RegisterLateEffect();
         set_register(reinterpret_cast<void*>(&AEHotLoader_RegisterLateEffect));
         Log("core: loaded and callback bridge installed");
     });
