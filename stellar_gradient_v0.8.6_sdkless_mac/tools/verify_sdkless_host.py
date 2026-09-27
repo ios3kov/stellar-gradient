@@ -52,8 +52,7 @@ checks['ephemeral rustfmt build copy']=('HOST_BUILD="$ROOT/.sdkless-build"' in r
 checks['native optical center'] = all(x in host for x in [
     'Params::DiffCenter,"Center",ae::PointDef::setup',
     'Params::DiffCenter)?.as_point()?.value()',
-    'ParamUIFlags::INVISIBLE',
-])
+]) and 'add_hidden_id' not in host
 checks['native depth angle'] = all(x in host for x in [
     'Params::DepthAngle,"Angle",ae::AngleDef::setup',
     'p.depth_angle_deg=params.get(Params::DepthAngle)?.as_angle()?.float_value()',

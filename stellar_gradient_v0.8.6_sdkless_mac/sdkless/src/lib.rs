@@ -213,14 +213,6 @@ fn add_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def:
         -1
     })
 }
-fn add_hidden_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def: impl Into<ae::Param<'a>>, id: i32) -> Result<(), ae::Error> {
-    if id != key as i32 { return Err(ae::Error::InvalidParms); }
-    params.add_customized(key,name,def,move |pd| {
-        pd.set_id(key as i32);
-        pd.set_ui_flag(ae::ParamUIFlags::INVISIBLE,true);
-        -1
-    })
-}
 fn add_supervised_id<'a>(params: &mut ae::Parameters<Params>, key: Params, name: &str, def: impl Into<ae::Param<'a>>, id: i32) -> Result<(), ae::Error> {
     if id != key as i32 { return Err(ae::Error::InvalidParms); }
     params.add_customized(key,name,def,move |pd| {
@@ -270,8 +262,6 @@ impl AdobePluginGlobal for Plugin {
         add_group(params,Params::GrainTopic,"Grain",33,true,true)?; percent_slider!(Params::GrainAmount,"Amount",0.0,200.0,0.0,200.0,20.0,1,34); slider!(Params::GrainSize,"Size",0.3,5.0,0.3,3.0,1.0,2,35); percent_slider!(Params::GrainColor,"Color",0.0,100.0,0.0,100.0,100.0,1,36); add_id(params,Params::GrainAnimate,"Animate",ae::CheckBoxDef::setup(|x|{x.set_default(true);x.set_value(true);}),37)?; add_group(params,Params::GrainEnd,"",38,false,false)?;
         add_group(params,Params::DiffTopic,"Optical Diffusion",39,true,true)?;
         slider!(Params::DiffBlur,"Blur",0.0,2000.0,0.0,500.0,15.0,1,40);
-        add_hidden_id(params,Params::DiffCenterX,"Center X (legacy)",ae::FloatSliderDef::setup(|x|{x.set_valid_min(0.0);x.set_valid_max(100.0);x.set_slider_min(0.0);x.set_slider_max(100.0);x.set_default(50.0);x.set_precision(1);x.set_value(x.default());}),41)?;
-        add_hidden_id(params,Params::DiffCenterY,"Center Y (legacy)",ae::FloatSliderDef::setup(|x|{x.set_valid_min(0.0);x.set_valid_max(100.0);x.set_slider_min(0.0);x.set_slider_max(100.0);x.set_default(50.0);x.set_precision(1);x.set_value(x.default());}),42)?;
         add_id(params,Params::DiffCenter,"Center",ae::PointDef::setup(|x|{x.set_default((50.0,50.0));x.set_value(x.default());}),52)?;
         slider!(Params::DiffFocus,"Focus",0.0,4000.0,0.0,1000.0,50.0,1,43);
         slider!(Params::DiffFeather,"Feather",0.0,4000.0,0.0,1000.0,450.0,1,44);
@@ -284,7 +274,7 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.4\rExact Cosmic palette behavior + Depth rounding + Metal"),
+            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.5\rAE init-safe params + exact Cosmic Depth + Metal"),
             ae::Command::UserChangedParam { param_index } => {
                 match params.type_at(param_index) {
                     Params::Presets => {

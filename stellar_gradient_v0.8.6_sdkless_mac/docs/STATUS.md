@@ -274,3 +274,13 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - Removed Stellar's incorrect behavior that reset Angle/Cycles/Offset/Phase, Depth, Turbulence, Glow, Grain and Optical Diffusion whenever a palette was selected.
 - Non-color parameters now remain untouched when switching palettes, matching the original binary.
 - Manual Color 1..5 edits still switch the menu to Custom.
+
+
+### AE 25::3 initialization recovery — v0.9.5
+
+- Real After Effects test of v0.9.4 failed during effect initialization (25::3); CI cannot detect host-level PARAMS_SETUP failures.
+- Removed setup-time registration of legacy Center X/Y with PF_PUI_INVISIBLE.
+- Upstream wrapper demonstrates INVISIBLE as a runtime UpdateParamUI operation; using it as a setup-time compatibility shim was unnecessary.
+- Native Optical Diffusion Center remains the only registered Center control.
+- Enum/disk IDs 41/42 remain reserved and are not reused.
+- Exact Cosmic Depth/Rounding CPU+Metal is unchanged.
