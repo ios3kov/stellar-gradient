@@ -350,7 +350,7 @@ A_Err PluginDataEntryFunction2(
         kApiMajor,
         kApiMinor,
         kRegistrationReservedInfo,
-        reinterpret_cast<const std::uint8_t*>("https://github.com/ios3kov/AE-Hot-Loader"));
+        reinterpret_cast<const std::uint8_t*>("https://github.com/ios3kov"));
 
     char message[512]{};
     std::snprintf(
