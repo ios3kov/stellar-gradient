@@ -5,7 +5,9 @@
 #include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
+#include <fstream>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -68,9 +70,10 @@ constexpr const char* kImplementationKey = "stellar-gradient";
 
 std::atomic<ImplEffectMainFn> g_effect_main{nullptr};
 std::mutex g_reload_mutex;
+std::shared_mutex g_call_gate;
 std::vector<void*> g_loaded_handles;
 std::string g_loaded_source;
-std::uint64_t g_loaded_stamp = 0;
+std::uint64_t g_loaded_fingerprint = 0;
 std::uint64_t g_reload_ordinal = 0;
 
 void Log(const std::string& message) {
@@ -112,26 +115,40 @@ std::string ExternalImplementationPath() {
            "/Library/Application Support/AE Hot Loader/implementations/stellar-gradient/current.dylib";
 }
 
-bool FileStamp(const std::string& path, std::uint64_t* stamp) {
+bool FileFingerprint(const std::string& path, std::uint64_t* fingerprint) {
     struct stat st {};
     if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
         return false;
     }
-#if defined(__APPLE__)
-    const auto sec = static_cast<std::uint64_t>(st.st_mtimespec.tv_sec);
-    const auto nsec = static_cast<std::uint64_t>(st.st_mtimespec.tv_nsec);
-#else
-    const auto sec = static_cast<std::uint64_t>(st.st_mtim.tv_sec);
-    const auto nsec = static_cast<std::uint64_t>(st.st_mtim.tv_nsec);
-#endif
-    *stamp = (sec * 1000000000ULL) ^ nsec ^ static_cast<std::uint64_t>(st.st_size);
+
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        return false;
+    }
+
+    // FNV-1a 64-bit. This is change detection, not a security primitive.
+    std::uint64_t hash = 1469598103934665603ULL;
+    char buffer[64 * 1024];
+    while (input) {
+        input.read(buffer, sizeof(buffer));
+        const auto count = input.gcount();
+        for (std::streamsize i = 0; i < count; ++i) {
+            hash ^= static_cast<std::uint8_t>(buffer[i]);
+            hash *= 1099511628211ULL;
+        }
+    }
+    if (input.bad()) {
+        return false;
+    }
+
+    *fingerprint = hash;
     return true;
 }
 
 std::string SelectSource() {
     const std::string external = ExternalImplementationPath();
     std::uint64_t ignored = 0;
-    if (!external.empty() && FileStamp(external, &ignored)) {
+    if (!external.empty() && FileFingerprint(external, &ignored)) {
         return external;
     }
     return DefaultImplementationPath();
@@ -173,22 +190,27 @@ int LoadImplementationFromSourceLocked(
         return -4101;
     }
 
-    std::uint64_t stamp = 0;
-    if (!FileStamp(source, &stamp)) {
-        if (detail) *detail = "Implementation file is unavailable: " + source;
-        return -4102;
-    }
-
-    if (!force && source == g_loaded_source && stamp == g_loaded_stamp &&
-        g_effect_main.load(std::memory_order_acquire) != nullptr) {
-        if (detail) *detail = "Stellar Gradient implementation unchanged.";
-        return 1;
-    }
-
     const std::string runtime_path = RuntimeCopyPath(source);
     if (runtime_path.empty()) {
         if (detail) *detail = "Could not stage implementation dylib.";
         return -4103;
+    }
+
+    std::uint64_t fingerprint = 0;
+    if (!FileFingerprint(runtime_path, &fingerprint)) {
+        std::error_code remove_error;
+        std::filesystem::remove(runtime_path, remove_error);
+        if (detail) *detail = "Could not fingerprint staged implementation dylib.";
+        return -4102;
+    }
+
+    if (!force &&
+        fingerprint == g_loaded_fingerprint &&
+        g_effect_main.load(std::memory_order_acquire) != nullptr) {
+        std::error_code remove_error;
+        std::filesystem::remove(runtime_path, remove_error);
+        if (detail) *detail = "Stellar Gradient implementation unchanged.";
+        return 1;
     }
 
     void* handle = dlopen(runtime_path.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -260,10 +282,15 @@ int LoadImplementationFromSourceLocked(
         }
     }
 
-    g_loaded_handles.push_back(handle);
-    g_loaded_source = source;
-    g_loaded_stamp = stamp;
-    g_effect_main.store(effect_main, std::memory_order_release);
+    // Quiescent swap: let already-running MFR/render calls finish and prevent
+    // a mix of old/new implementation code from touching the same AE state.
+    {
+        std::unique_lock<std::shared_mutex> call_lock(g_call_gate);
+        g_loaded_handles.push_back(handle);
+        g_loaded_source = source;
+        g_loaded_fingerprint = fingerprint;
+        g_effect_main.store(effect_main, std::memory_order_release);
+    }
 
     if (detail) {
         *detail = "Reloaded Stellar Gradient implementation " + implementation_label +
@@ -278,8 +305,21 @@ int LoadImplementation(bool force, std::string* detail) {
     return LoadImplementationFromSourceLocked(SelectSource(), force, detail);
 }
 
+int EnsureImplementationLoaded(std::string* detail) {
+    std::lock_guard<std::mutex> lock(g_reload_mutex);
+    if (g_effect_main.load(std::memory_order_acquire) != nullptr) {
+        if (detail) *detail = "Implementation already active.";
+        return 1;
+    }
+    return LoadImplementationFromSourceLocked(SelectSource(), true, detail);
+}
+
 int LoadBundledImplementation(std::string* detail) {
     std::lock_guard<std::mutex> lock(g_reload_mutex);
+    if (g_effect_main.load(std::memory_order_acquire) != nullptr) {
+        if (detail) *detail = "Implementation already active.";
+        return 1;
+    }
     return LoadImplementationFromSourceLocked(
         DefaultImplementationPath(),
         true,
@@ -294,10 +334,9 @@ PF_Err ForwardEffectMain(
     PF_LayerDef* output,
     void* extra) {
 
-    ImplEffectMainFn fn = g_effect_main.load(std::memory_order_acquire);
-    if (!fn) {
+    if (g_effect_main.load(std::memory_order_acquire) == nullptr) {
         std::string detail;
-        int load_result = LoadImplementation(true, &detail);
+        const int load_result = EnsureImplementationLoaded(&detail);
         Log("initial implementation load result=" + std::to_string(load_result) + " " + detail);
 
         if (load_result < 0 && g_effect_main.load(std::memory_order_acquire) == nullptr) {
@@ -307,10 +346,12 @@ PF_Err ForwardEffectMain(
                 "bundled fallback result=" + std::to_string(fallback_result) +
                 " " + fallback_detail);
         }
-
-        fn = g_effect_main.load(std::memory_order_acquire);
     }
 
+    // Shared gate keeps MFR calls concurrent with each other, but a reload
+    // waits for all in-flight calls before publishing a new EffectMain.
+    std::shared_lock<std::shared_mutex> call_lock(g_call_gate);
+    ImplEffectMainFn fn = g_effect_main.load(std::memory_order_acquire);
     if (!fn) {
         return -4106;
     }
@@ -334,35 +375,39 @@ A_Err PluginDataEntryFunction2(
     const char* in_host_name,
     const char* in_host_version) {
 
-    (void)in_basic_suite;
+    try {
+        (void)in_basic_suite;
 
-    if (!in_callback) {
-        return -4107;
+        if (!in_callback) {
+            return -4107;
+        }
+
+        const A_Err result = in_callback(
+            in_ptr,
+            reinterpret_cast<const std::uint8_t*>("Stellar Gradient"),
+            reinterpret_cast<const std::uint8_t*>("StellarLabs.StellarGradient"),
+            reinterpret_cast<const std::uint8_t*>("Stellar"),
+            reinterpret_cast<const std::uint8_t*>("EffectMain"),
+            kAEEffectKind,
+            kApiMajor,
+            kApiMinor,
+            kRegistrationReservedInfo,
+            reinterpret_cast<const std::uint8_t*>("https://github.com/ios3kov"));
+
+        char message[512]{};
+        std::snprintf(
+            message,
+            sizeof(message),
+            "shell startup host=%s version=%s registration=%d",
+            in_host_name ? in_host_name : "(null)",
+            in_host_version ? in_host_version : "(null)",
+            result);
+        Log(message);
+
+        return result;
+    } catch (...) {
+        return -4190;
     }
-
-    const A_Err result = in_callback(
-        in_ptr,
-        reinterpret_cast<const std::uint8_t*>("Stellar Gradient"),
-        reinterpret_cast<const std::uint8_t*>("StellarLabs.StellarGradient"),
-        reinterpret_cast<const std::uint8_t*>("Stellar"),
-        reinterpret_cast<const std::uint8_t*>("EffectMain"),
-        kAEEffectKind,
-        kApiMajor,
-        kApiMinor,
-        kRegistrationReservedInfo,
-        reinterpret_cast<const std::uint8_t*>("https://github.com/ios3kov"));
-
-    char message[512]{};
-    std::snprintf(
-        message,
-        sizeof(message),
-        "shell startup host=%s version=%s registration=%d",
-        in_host_name ? in_host_name : "(null)",
-        in_host_version ? in_host_version : "(null)",
-        result);
-    Log(message);
-
-    return result;
 }
 
 extern "C" __attribute__((visibility("default")))
@@ -373,14 +418,26 @@ PF_Err EffectMain(
     PF_ParamDef** params,
     PF_LayerDef* output,
     void* extra) {
-    return ForwardEffectMain(cmd, in_data, out_data, params, output, extra);
+
+    try {
+        return ForwardEffectMain(cmd, in_data, out_data, params, output, extra);
+    } catch (...) {
+        return -4191;
+    }
 }
 
 extern "C" __attribute__((visibility("default")))
 int AEHotLoader_ShellReload(char* output, std::size_t output_capacity) {
-    std::string detail;
-    const int result = LoadImplementation(false, &detail);
-    CopyMessage(output, output_capacity, detail);
-    Log("reload result=" + std::to_string(result) + " " + detail);
-    return result;
+    try {
+        std::string detail;
+        const int result = LoadImplementation(false, &detail);
+        CopyMessage(output, output_capacity, detail);
+        Log("reload result=" + std::to_string(result) + " " + detail);
+        return result;
+    } catch (...) {
+        if (output && output_capacity > 0) {
+            std::snprintf(output, output_capacity, "%s", "Unhandled shell exception.");
+        }
+        return -4192;
+    }
 }
