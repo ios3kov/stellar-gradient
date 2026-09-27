@@ -219,8 +219,13 @@ std::string RuntimeCopyPath(const std::string& source) {
         return {};
     }
 
+    const auto image_identity =
+        static_cast<unsigned long long>(
+            reinterpret_cast<std::uintptr_t>(&BundleRoot));
     const std::filesystem::path destination =
-        root / ("stellar-gradient-" + std::to_string(ordinal) + ".dylib");
+        root / (
+            "stellar-gradient-" + std::to_string(image_identity) + "-" +
+            std::to_string(ordinal) + ".dylib");
 
     std::filesystem::copy_file(
         source,
