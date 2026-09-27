@@ -71,7 +71,7 @@ jobs:
           codesign --verify --deep --strict "$BUNDLE"
 
           nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'PluginDataEntryFunction2|EffectMain|AEHotLoader_ShellReload'
-          nm -gU "$BUNDLE/Contents/Frameworks/StellarGradientImpl.dylib" | grep -E 'EffectMain|AEHotLoader_ImplementationLabel'
+          nm -gU "$BUNDLE/Contents/Frameworks/StellarGradientImpl.dylib" | grep -E 'EffectMain|AEHotLoader_ImplementationLabel|AEHotLoader_ImplementationABI|AEHotLoader_ImplementationStateABI|AEHotLoader_ImplementationKey'
           strings "$BUNDLE/Contents/Resources/StellarGradient.rsrc" | grep -F 'StellarLabs.StellarGradient'
           plutil -lint "$BUNDLE/Contents/Info.plist"
 
