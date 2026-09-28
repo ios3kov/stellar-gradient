@@ -59,6 +59,7 @@ struct RenderStateC {
     time_seconds: f64,
     frame_index: u32,
     engine_mode: i32,
+    generation: u64,
 }
 
 unsafe extern "C" {
@@ -319,7 +320,7 @@ impl AdobePluginGlobal for Plugin {
                 let mut req=extra.output_request(); req.rect=rect_to_raw(dep);
                 let cr=extra.callbacks().checkout_layer(0,0,&req,in_data.current_time(),in_data.time_step(),in_data.time_scale())?;
                 let mut state=RenderStateC { params:p, input_rect:rect_from_raw(cr.result_rect), source_max_rect:rect_from_raw(cr.max_result_rect),
-                    output_rect:RectC::default(), work_rect:RectC::default(), time_seconds:if in_data.time_scale()!=0 {in_data.current_time() as f64/in_data.time_scale() as f64}else{0.0}, frame_index:if in_data.time_step()!=0 {(in_data.current_time()/in_data.time_step()) as u32}else{0}, engine_mode:engine };
+                    output_rect:RectC::default(), work_rect:RectC::default(), time_seconds:if in_data.time_scale()!=0 {in_data.current_time() as f64/in_data.time_scale() as f64}else{0.0}, frame_index:if in_data.time_step()!=0 {(in_data.current_time()/in_data.time_step()) as u32}else{0}, engine_mode:engine, generation:hot_reload_generation() };
                 let mut semantic=RectC::default();
                 unsafe { sg_finalize_rects(&state.params,requested,state.input_rect,state.source_max_rect,&mut state.output_rect,&mut state.work_rect,&mut semantic); }
                 extra.set_result_rect(rect_to_ae(state.output_rect)); extra.set_max_result_rect(rect_to_ae(semantic));
@@ -341,6 +342,7 @@ impl AdobePluginGlobal for Plugin {
             }
             ae::Command::SmartRender { extra } => {
                 let Some(state)=extra.pre_render_data::<RenderStateC>() else { return Err(ae::Error::InternalStructDamaged); };
+                if state.generation != hot_reload_generation() { return Err(ae::Error::BadCallbackParameter); }
                 if unsafe { sg_rect_empty(state.output_rect) } != 0 { return Ok(()); }
                 let cb=extra.callbacks(); let Some(input)=cb.checkout_layer_pixels(0)? else { return Ok(()); };
                 let result=(|| {
@@ -393,6 +395,7 @@ impl AdobePluginGlobal for Plugin {
             #[cfg(target_os="macos")]
             ae::Command::SmartRenderGpu { extra } => {
                 let Some(state)=extra.pre_render_data::<RenderStateC>() else { return Err(ae::Error::InternalStructDamaged); };
+                if state.generation != hot_reload_generation() { return Err(ae::Error::BadCallbackParameter); }
                 if unsafe { sg_rect_empty(state.output_rect) } != 0 { return Ok(()); }
                 let raw=extra.as_ptr();
                 let g=unsafe {
@@ -422,7 +425,7 @@ impl AdobePluginGlobal for Plugin {
     }
 }
 
-const HOT_RELOAD_STATE_ABI: u64 = 3;
+const HOT_RELOAD_STATE_ABI: u64 = 4;
 
 const HOT_RELOAD_IMPL_LABEL: &str = match option_env!("AE_HOT_LOADER_IMPL_LABEL") {
     Some(value) => value,
@@ -498,11 +501,12 @@ mod tests {
         assert_eq!(std::mem::align_of::<ParamsC>(), 4);
         assert_eq!(std::mem::offset_of!(ParamsC, diffusion_center), 160);
         assert_eq!(std::mem::offset_of!(ParamsC, quality), 180);
-        assert_eq!(std::mem::size_of::<RenderStateC>(), 264);
+        assert_eq!(std::mem::size_of::<RenderStateC>(), 272);
         assert_eq!(std::mem::align_of::<RenderStateC>(), 8);
         assert_eq!(std::mem::offset_of!(RenderStateC, input_rect), 184);
         assert_eq!(std::mem::offset_of!(RenderStateC, time_seconds), 248);
         assert_eq!(std::mem::offset_of!(RenderStateC, engine_mode), 260);
+        assert_eq!(std::mem::offset_of!(RenderStateC, generation), 264);
         assert_eq!(std::mem::size_of::<GpuContext>(), 32);
         assert_eq!(std::mem::align_of::<GpuContext>(), 8);
         assert_eq!(std::mem::offset_of!(GpuContext, ptr), 0);
