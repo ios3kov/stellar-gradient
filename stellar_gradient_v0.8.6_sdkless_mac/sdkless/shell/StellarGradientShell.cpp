@@ -476,7 +476,14 @@ int EnsureImplementationLoaded(std::string* detail) {
         if (detail) *detail = "Implementation already active.";
         return 1;
     }
-    return LoadImplementationFromSourceLocked(SelectSource(), true, detail);
+
+    // The bundled implementation is the only trusted process baseline.
+    // A stale external current.dylib must never establish the Rust/state ABI
+    // merely because it was left on disk from an earlier session.
+    return LoadImplementationFromSourceLocked(
+        DefaultImplementationPath(),
+        true,
+        detail);
 }
 
 int LoadBundledImplementation(std::string* detail) {
