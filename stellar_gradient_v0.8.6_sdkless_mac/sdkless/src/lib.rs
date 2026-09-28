@@ -440,6 +440,18 @@ fn write_hot_reload_string(value: &str, output: *mut c_char, output_capacity: us
     0
 }
 
+
+
+const HOT_RELOAD_RUNTIME_ABI: &str = env!("AE_HOT_LOADER_RUNTIME_ABI");
+
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_ImplementationRuntimeABI(
+    output: *mut c_char,
+    output_capacity: usize,
+) -> i32 {
+    write_hot_reload_string(HOT_RELOAD_RUNTIME_ABI, output, output_capacity)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
