@@ -2,10 +2,10 @@ name: AE deferred diagnostic harness
 on:
   push:
     branches: [fix/stellar-release-gate]
-    paths: [diagnostics/Stellar_AE_Diagnostics_v1_1.jsx, diagnostics/test_runner_v1_1.cjs, .github/workflows/ae-render-sequence.yml]
+    paths: [diagnostics/Stellar_AE_Diagnostics_v1_1.jsx, diagnostics/test_runner_v1_1.cjs, diagnostics/Stellar_AE_Diagnostics_v1_2.jsx, diagnostics/test_runner_v1_2.cjs, .github/workflows/ae-render-sequence.yml]
   pull_request:
     branches: [main]
-    paths: [diagnostics/Stellar_AE_Diagnostics_v1_1.jsx, diagnostics/test_runner_v1_1.cjs, .github/workflows/ae-render-sequence.yml]
+    paths: [diagnostics/Stellar_AE_Diagnostics_v1_1.jsx, diagnostics/test_runner_v1_1.cjs, diagnostics/Stellar_AE_Diagnostics_v1_2.jsx, diagnostics/test_runner_v1_2.cjs, .github/workflows/ae-render-sequence.yml]
 permissions:
   contents: read
 concurrency:
@@ -21,6 +21,8 @@ jobs:
         with:
           node-version: '22'
       - name: Deferred sequence and failure safety (NOT real AE)
-        run: node diagnostics/test_runner_v1_1.cjs
+        run: |
+          node diagnostics/test_runner_v1_1.cjs
+          node diagnostics/test_runner_v1_2.cjs
       - name: Record diagnostic identity
-        run: sha256sum diagnostics/Stellar_AE_Diagnostics_v1_1.jsx
+        run: sha256sum diagnostics/Stellar_AE_Diagnostics_v1_1.jsx diagnostics/Stellar_AE_Diagnostics_v1_2.jsx

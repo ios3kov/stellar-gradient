@@ -2,11 +2,13 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const script = fs.readFileSync(__dirname + '/Stellar_AE_Diagnostics_v1_1.jsx', 'utf8');
+const script = fs.readFileSync(process.env.STELLAR_DIAGNOSTIC_SCRIPT || __dirname + '/Stellar_AE_Diagnostics_v1_1.jsx', 'utf8');
 const mock = `
 var files={},folders={'/Desktop':true},alerts=[],changes=0,begins=0,ends=0,turn=0;
 var tasks=[],serial=0,qitems=[],itemCount=opt.busy?3:0,depth=8,applied=0;
-var calls=[],rendering=false,reads=[],priorErrors=0;
+var calls=[],rendering=!!opt.initialRendering,reads=[],priorErrors=0;
+var confirmations=[],newProjectCalls=0,newProjectOriginal=null;
+if(opt.initialQueue)qitems.push({fixture:'existing user queue'});
 var $={os:'mock macOS, NOT real AE',global:this};
 var PropertyType={PROPERTY:1},PropertyValueType={NO_VALUE:0,CUSTOM_VALUE:99};
 var PostRenderAction={NONE:0};
@@ -69,6 +71,28 @@ var app={version:'25.mock',buildNumber:0,project:project,disableRendering:!!opt.
  scheduleTask:function(code,delay,repeat){if(opt.scheduleFails)throw Error('schedule failed');if(repeat)throw Error('unexpected repeat');if(begins!==ends||qitems.length||itemCount||app.onError!==(opt.existingError?'previousError':null))throw Error('ASYNC STATE LEAK');tasks.push({id:++serial,code:code});return serial;},
  cancelTask:function(id){tasks=tasks.filter(function(t){return t.id!==id;});}
 };
+function confirm(text,noAsDefault){
+ confirmations.push({text:text,noAsDefault:noAsDefault,turn:turn});
+ if(opt.switchDuringConsent)app.project={file:{},numItems:11,renderQueue:{numItems:0,rendering:false}};
+ if(opt.renderDuringConsent)rendering=true;
+ return opt.approvePreparation===true;
+}
+app.newProject=function(){
+ newProjectCalls++;
+ if(opt.approvePreparation!==true)throw Error('project creation without consent');
+ if(opt.newProjectThrows)throw Error('mock native save failure');
+ if(opt.cancelNativeSave)return null;
+ newProjectOriginal={items:itemCount,queue:qitems.length,file:project.file};
+ itemCount=opt.startupTemplate?1:0;qitems=[];
+ project=Object.assign({},project,{file:null});
+ Object.defineProperty(project,'numItems',{get:function(){return itemCount;}});
+ Object.defineProperty(project,'bitsPerChannel',{get:function(){return depth;},set:function(v){depth=v;changes++;}});
+ app.project=project;return project;
+};
+if(opt.unknownFile)project.file=undefined;
+if(opt.unreadableItems)Object.defineProperty(project,'numItems',{get:function(){throw Error('private path must not leak');}});
+if(opt.invalidCount)Object.defineProperty(project,'numItems',{get:function(){return '0';}});
+if(opt.noProject)app.project=null;
 function alert(text){alerts.push(text);}
 `;
 function run(opt={}) {
@@ -110,4 +134,6 @@ test('scheduler failure clears registration with no fixture left',()=>{const s=r
 test('cleanup failure is reported, not broadly repaired',()=>{const s=run({cleanupFails:true});assert.equal(s.report.summary,'FAIL');assert.equal(s.report.cases[0].cleanup,'FAIL');assert.equal(s.ctx.calls.length,1);assert.equal(s.ctx.begins,s.ctx.ends);});
 test('in-progress host render is never modified or forced stopped',()=>{const s=run({stillRendering:'control_8'});assert.equal(s.report.summary,'FAIL');assert.equal(s.ctx.rendering,true);assert.equal(s.ctx.qitems.length,1);assert.ok(s.ctx.itemCount>0);assert.equal(s.ctx.begins,s.ctx.ends);});
 test('clean fixture controls and no-effect controls remain separate',()=>{const s=run();assert.equal(s.report.cases[0].engine_requested,0);assert.equal(s.report.cases[0].controls_at_render,undefined);assert.deepEqual(s.report.cases[2].disabled_parameter_ids,[15,19,30,34,40]);assert.ok(s.report.captures.every(c=>c.engine_actually_used==='NOT_VERIFIED'&&c.pixel_correctness==='NOT_RUN'));restored(s);});
-console.log(total+' harness tests PASS. Real AE v1.1: NOT RUN.');
+console.log(total+' sequence tests PASS; real AE NOT RUN.');
+
+module.exports = {run, restored, test};
