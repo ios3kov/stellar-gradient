@@ -81,15 +81,18 @@ acceptance remain unverified until the relevant actual-host evidence exists.
 ## Evidence / identity
 
 Collector SHA-256:
-`d649efce7de87f32d84ca610688cd4d5572f8977b69a0b5ead084e53a5cd6f41`.
-Local Linux: Bash syntax PASS; 20 fixture tests PASS; the one real-macOS-command
-case is NOT RUN locally (requires macOS). Dedicated CI runs all 21 on macOS.
+`48ed72555dc97e6eedfb483fe67526329460d1ce260b2093f8c6df565aecf7c3`.
+Local Linux: Bash syntax PASS; 21 fixture checks PASS; one real-macOS-command
+case is NOT RUN locally (requires macOS). Dedicated CI runs 21 existing cases
+plus the report-write regression (22 total) on macOS.
 CI result is recorded separately after execution; it is not assumed here.
 Tests cover unchanged unrelated Cosmic files; invalid/symlink inputs; duplicates;
 disabled folder hints; malformed/escaping plist values; invalid signature;
 quarantine observation without deletion; shell marker; staging-only downloads;
 redaction and process filtering; incomplete depth coverage; fresh report paths;
-unsupported OS and missing Desktop. No native/plugin source is changed.
+unsupported OS, missing Desktop and report-write failure. Completed collection has
+an explicit footer; a write failure is not announced as success. No native/plugin
+source is changed.
 
 ## Research used (not observations of the user's Mac)
 

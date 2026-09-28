@@ -5,12 +5,14 @@ on:
     paths:
       - diagnostics/Stellar_Mac_Check.command
       - diagnostics/test_mac_check.py
+      - diagnostics/test_mac_report_write.py
       - .github/workflows/mac-install-check.yml
   pull_request:
     branches: [main]
     paths:
       - diagnostics/Stellar_Mac_Check.command
       - diagnostics/test_mac_check.py
+      - diagnostics/test_mac_report_write.py
       - .github/workflows/mac-install-check.yml
 permissions:
   contents: read
@@ -33,5 +35,6 @@ jobs:
           set -euo pipefail
           /bin/bash -n diagnostics/Stellar_Mac_Check.command
           python3 diagnostics/test_mac_check.py
+          python3 diagnostics/test_mac_report_write.py
       - name: Record diagnostic file identity
         run: shasum -a 256 diagnostics/Stellar_Mac_Check.command

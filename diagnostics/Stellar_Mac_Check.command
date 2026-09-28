@@ -181,6 +181,7 @@ sg_report() {
     sg_line 'NOT_VERIFIED: Effects Manager enablement, nonstandard unopened app paths, runtime Build ID and actual render'
     sg_line 'No plugin was installed/removed/executed; no cache, preference or security setting changed; no process stopped.'
     sg_line 'Read-only commands have no hard timeout; Ctrl+C safely stops collection; a partial report is not PASS.'
+    sg_line 'COLLECTION_FINISHED; actual AE render NOT_RUN; no release approval'
 }
 sg_main() (
     # Subshell keeps option changes local to this diagnostic.
@@ -198,7 +199,10 @@ sg_main() (
     SG_PARTIAL=0; SG_VISITED=0; SG_BUNDLES=0; SG_INSTALLED=0
     SG_OUTPUT=$(sg_run /usr/bin/mktemp -d "$HOME/Desktop/Stellar-Mac-Check.XXXXXXXX") || return 3
     printf '%s\n' 'Checking Stellar files only. After Effects can stay open.'
-    sg_report > "$SG_OUTPUT/report.txt" 2>&1
+    if ! sg_report > "$SG_OUTPUT/report.txt" 2>&1 || [[ ! -s "$SG_OUTPUT/report.txt" ]]; then
+        printf '%s\n' 'Report write failed/incomplete; do not treat this as a completed check.' >&2
+        return 4
+    fi
     printf '\n%s\n%s\n' 'Report created. Send report.txt from this folder:' "$SG_OUTPUT"
 )
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then sg_main "$@"; fi
