@@ -30,15 +30,12 @@ fn main() {
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|| "rustc-unknown".to_string());
     let target = std::env::var("TARGET").unwrap_or_else(|_| "target-unknown".to_string());
-    let manifest_dir = std::path::PathBuf::from(
-        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"),
-    );
+    let manifest_dir =
+        std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let lock_fingerprint = hot_reload_lock_fingerprint(&manifest_dir);
     println!(
         "cargo:rustc-env=AE_HOT_LOADER_RUNTIME_ABI={}|{}|after-effects=83dcc93734fd5db1335b6ec83cba7a6505a39dcc|lock={}",
-        rustc_version,
-        target,
-        lock_fingerprint
+        rustc_version, target, lock_fingerprint
     );
     println!("cargo:rerun-if-env-changed=AE_HOT_LOADER_IMPL_LABEL");
     // Rust 1.80+ validates cfg names at the destination crate. The
