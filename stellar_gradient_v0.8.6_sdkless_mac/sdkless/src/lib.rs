@@ -12,6 +12,7 @@ compile_error!("gpu_render cfg missing: GPU selectors are not active");
 #[cfg(not(catch_panics))]
 compile_error!("catch_panics cfg missing: release FFI panic boundary is not active");
 use std::ffi::{c_char, c_void};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -101,20 +102,20 @@ ae::define_effect!(Plugin, (), Params);
 // Store the native pointer as an integer so the render-side context is plain,
 // immutable Send+Sync data. AE owns the device lifetime between GPU setup and
 // setdown; the pointed-to Metal context is read-only during frame dispatch.
+type MetalDestroyFn = unsafe extern "C" fn(*mut c_void);
+
 #[repr(C)]
 struct GpuContext {
     ptr: usize,
     generation: u64,
+    destroy_fn: MetalDestroyFn,
     supports_f32: bool,
 }
 
+static HOT_RELOAD_GENERATION: AtomicU64 = AtomicU64::new(0);
+
 fn hot_reload_generation() -> u64 {
-    let mut hash = 1469598103934665603u64;
-    for byte in HOT_RELOAD_IMPL_LABEL.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(1099511628211u64);
-    }
-    hash
+    HOT_RELOAD_GENERATION.load(Ordering::Acquire)
 }
 
 fn rc_to_err(rc: i32) -> Result<(), ae::Error> {
@@ -366,6 +367,7 @@ impl AdobePluginGlobal for Plugin {
                     let context=Box::new(GpuContext{
                         ptr:ptr as usize,
                         generation:hot_reload_generation(),
+                        destroy_fn:sg_metal_destroy,
                         supports_f32:f32_ok!=0
                     });
                     unsafe { (*(*raw).output).gpu_data=Box::into_raw(context) as *mut c_void; }
@@ -383,7 +385,7 @@ impl AdobePluginGlobal for Plugin {
                             let context_ptr=(*input).gpu_data as *mut GpuContext;
                             (*input).gpu_data=std::ptr::null_mut();
                             let g=Box::from_raw(context_ptr);
-                            sg_metal_destroy(g.ptr as *mut c_void);
+                            (g.destroy_fn)(g.ptr as *mut c_void);
                         }
                     }
                 }
@@ -420,7 +422,7 @@ impl AdobePluginGlobal for Plugin {
     }
 }
 
-const HOT_RELOAD_STATE_ABI: u64 = 2;
+const HOT_RELOAD_STATE_ABI: u64 = 3;
 
 const HOT_RELOAD_IMPL_LABEL: &str = match option_env!("AE_HOT_LOADER_IMPL_LABEL") {
     Some(value) => value,
@@ -429,7 +431,7 @@ const HOT_RELOAD_IMPL_LABEL: &str = match option_env!("AE_HOT_LOADER_IMPL_LABEL"
 
 #[unsafe(no_mangle)]
 pub extern "C" fn AEHotLoader_ImplementationABI() -> u32 {
-    1
+    2
 }
 
 #[unsafe(no_mangle)]
@@ -478,6 +480,11 @@ pub extern "C" fn AEHotLoader_ImplementationRuntimeABI(
     write_hot_reload_string(HOT_RELOAD_RUNTIME_ABI, output, output_capacity)
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn AEHotLoader_SetGeneration(generation: u64) {
+    HOT_RELOAD_GENERATION.store(generation, Ordering::Release);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,10 +503,11 @@ mod tests {
         assert_eq!(std::mem::offset_of!(RenderStateC, input_rect), 184);
         assert_eq!(std::mem::offset_of!(RenderStateC, time_seconds), 248);
         assert_eq!(std::mem::offset_of!(RenderStateC, engine_mode), 260);
-        assert_eq!(std::mem::size_of::<GpuContext>(), 24);
+        assert_eq!(std::mem::size_of::<GpuContext>(), 32);
         assert_eq!(std::mem::align_of::<GpuContext>(), 8);
         assert_eq!(std::mem::offset_of!(GpuContext, ptr), 0);
         assert_eq!(std::mem::offset_of!(GpuContext, generation), 8);
-        assert_eq!(std::mem::offset_of!(GpuContext, supports_f32), 16);
+        assert_eq!(std::mem::offset_of!(GpuContext, destroy_fn), 16);
+        assert_eq!(std::mem::offset_of!(GpuContext, supports_f32), 24);
     }
 }
