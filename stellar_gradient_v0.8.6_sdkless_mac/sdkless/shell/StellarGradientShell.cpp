@@ -43,6 +43,7 @@ using ImplAbiFn = std::uint32_t (*)();
 using ImplStateAbiFn = std::uint64_t (*)();
 using ImplKeyFn = int (*)(char*, std::size_t);
 using ImplRuntimeAbiFn = int (*)(char*, std::size_t);
+using ImplSetGenerationFn = void (*)(std::uint64_t);
 
 using ImplEffectMainFn = PF_Err (*)(
     PF_Cmd,
@@ -66,8 +67,8 @@ constexpr A_long kApiMajor = 13;
 constexpr A_long kApiMinor = 29;
 constexpr A_long kRegistrationReservedInfo = 8;
 constexpr std::uint32_t kShellAbi = 1;
-constexpr std::uint32_t kImplementationAbi = 1;
-constexpr std::uint64_t kImplementationStateAbi = 2;
+constexpr std::uint32_t kImplementationAbi = 2;
+constexpr std::uint64_t kImplementationStateAbi = 3;
 constexpr const char* kImplementationKey = "stellar-gradient";
 constexpr std::size_t kMaxImplementationGenerations = 64;
 
@@ -338,8 +339,11 @@ int LoadImplementationFromSourceLocked(
         dlsym(handle, "AEHotLoader_ImplementationLabel"));
     auto runtime_abi_fn = reinterpret_cast<ImplRuntimeAbiFn>(
         dlsym(handle, "AEHotLoader_ImplementationRuntimeABI"));
+    auto set_generation_fn = reinterpret_cast<ImplSetGenerationFn>(
+        dlsym(handle, "AEHotLoader_SetGeneration"));
 
-    if (!abi_fn || !state_abi_fn || !key_fn || !label_fn || !runtime_abi_fn) {
+    if (!abi_fn || !state_abi_fn || !key_fn || !label_fn || !runtime_abi_fn ||
+        !set_generation_fn) {
         if (detail) *detail = "Implementation hot-reload ABI exports are missing.";
         RetainRejectedCandidate(handle, runtime_path);
         return -4108;
@@ -448,6 +452,11 @@ int LoadImplementationFromSourceLocked(
             }
             return -4112;
         }
+
+        // Generation is assigned by the shell from the exact staged dylib
+        // bytes, so it changes whenever executable code changes even if the
+        // human-readable build label is reused.
+        set_generation_fn(fingerprint);
 
         g_loaded_handles.push_back(handle);
         g_loaded_source = source;
