@@ -2,7 +2,7 @@ name: Mac CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix/stellar-release-gate]
     paths:
       - ".github/workflows/mac-ci.yml"
       - "stellar_gradient_v0.8.6_sdkless_mac/CMakeLists.txt"
@@ -12,7 +12,15 @@ on:
       - "stellar_gradient_v0.8.6_sdkless_mac/tests/**"
       - "stellar_gradient_v0.8.6_sdkless_mac/tools/**"
       - "stellar_gradient_v0.8.6_sdkless_mac/docs/SOURCE_FREEZE_V08_SHA256.txt"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mac-ci.yml"
+      - "stellar_gradient_v0.8.6_sdkless_mac/**"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: mac-ci-${{ github.ref }}
@@ -22,9 +30,31 @@ env:
   SRC: stellar_gradient_v0.8.6_sdkless_mac
 
 jobs:
+  source-record:
+    name: Source identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Record exact clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/COMMIT.txt
+          git archive --format=tar HEAD | gzip -n > evidence/source.tar.gz
+          (cd evidence && sha256sum source.tar.gz > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StellarGradient-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/
+          if-no-files-found: error
+
   contracts:
     name: Static contracts
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - name: Verify frozen contracts
@@ -40,6 +70,7 @@ jobs:
   core-regression:
     name: Core ${{ matrix.mode }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -68,10 +99,17 @@ jobs:
               TSAN_OPTIONS=halt_on_error=1 ctest --test-dir build-ci --output-on-failure
               ;;
           esac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: StellarGradient-core-${{ matrix.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SRC }}/build-ci/Testing/Temporary/
+          if-no-files-found: warn
 
   native-mac:
     name: Native bridge + Metal
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - name: Strict bridge regression
@@ -84,7 +122,7 @@ jobs:
           COMMON=(sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp)
           for test in bridge_parity_test bridge_formats_test bridge_mfr_test; do
             "${CXX[@]}" "sdkless/bridge/${test}.cpp" "${COMMON[@]}" -pthread -o ".ci-native/${test}"
-            ".ci-native/${test}"
+            ".ci-native/${test}" | tee ".ci-native/${test}.log"
           done
           "${CXX[@]}" -c sdkless/bridge/MetalBridge.mm -o .ci-native/MetalBridge.o
       - name: ASan + UBSan bridge smoke
@@ -92,12 +130,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          xcrun clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer             sdkless/bridge/bridge_parity_test.cpp sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp             -pthread -o .ci-native/bridge_asan
-          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 .ci-native/bridge_asan
+          xcrun clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer sdkless/bridge/bridge_parity_test.cpp sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp -pthread -o .ci-native/bridge_asan
+          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 .ci-native/bridge_asan | tee .ci-native/bridge_asan.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: StellarGradient-native-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SRC }}/.ci-native/*.log
+          if-no-files-found: warn
 
   rust-quality:
     name: Rust host quality
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -124,7 +169,9 @@ jobs:
 
   release-bundle:
     name: ARM64 plugin bundle
+    needs: [source-record, contracts, core-regression, native-mac, rust-quality]
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -170,8 +217,13 @@ jobs:
           nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2'
           plutil -lint "$BUNDLE/Contents/Info.plist"
           ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient.plugin.zip
+          shasum -a 256 StellarGradient.plugin.zip > StellarGradient.plugin.zip.sha256
+          git rev-parse HEAD > StellarGradient.commit.txt
       - uses: actions/upload-artifact@v4
         with:
           name: StellarGradient-mac-arm64
-          path: StellarGradient.plugin.zip
+          path: |
+            StellarGradient.plugin.zip
+            StellarGradient.plugin.zip.sha256
+            StellarGradient.commit.txt
           if-no-files-found: error
