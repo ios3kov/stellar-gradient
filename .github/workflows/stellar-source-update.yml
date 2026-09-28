@@ -18,9 +18,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = f2d51b4870589fc21373a6ae69ad55312261aacd
-          git apply --check .ci/stellar-source-update.patch
-          git apply .ci/stellar-source-update.patch
+          test "$(git rev-parse HEAD^)" = 7e9a0addf1b8be9d528910e283db382633d18cd5
+          sed -e 's/^@@ -0,0 +1,88 @@$/@@ -0,0 +1,86 @@/' -e 's/^@@ -0,0 +1,123 @@$/@@ -0,0 +1,124 @@/' .ci/stellar-source-update.patch > "$RUNNER_TEMP/stellar-source-update.patch"
+          echo "45224a7215b2373cde0323600e4b2e60880ec032dfd651715429f281ac036f57  $RUNNER_TEMP/stellar-source-update.patch" | sha256sum --check
+          git apply --check "$RUNNER_TEMP/stellar-source-update.patch"
+          git apply "$RUNNER_TEMP/stellar-source-update.patch"
           sha256sum --check <<'HASHES'
           9f58c4dffa78d6c710722551f8c49ae2d83d51c76831f30b8b61799c4cfaeeeb  .gitignore
           fa46d98d28a7d9463d1794fadf3f05a04a36230d074da6dc9910a96cc8d648ae  README.md
