@@ -613,3 +613,19 @@ int AEHotLoader_ShellReload(char* output, std::size_t output_capacity) {
         return -4192;
     }
 }
+
+
+extern "C" __attribute__((visibility("default")))
+std::uint32_t AEHotLoader_ShellABI() {
+    return 1;
+}
+
+extern "C" __attribute__((visibility("default")))
+int AEHotLoader_ShellKey(char* output, std::size_t output_capacity) {
+    try {
+        CopyMessage(output, output_capacity, kImplementationKey);
+        return (output && output_capacity > 0) ? 0 : -1;
+    } catch (...) {
+        return -4193;
+    }
+}
