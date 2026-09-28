@@ -42,6 +42,7 @@ using ImplLabelFn = int (*)(char*, std::size_t);
 using ImplAbiFn = std::uint32_t (*)();
 using ImplStateAbiFn = std::uint64_t (*)();
 using ImplKeyFn = int (*)(char*, std::size_t);
+using ImplRuntimeAbiFn = int (*)(char*, std::size_t);
 
 using ImplEffectMainFn = PF_Err (*)(
     PF_Cmd,
@@ -77,6 +78,7 @@ std::vector<void*> g_loaded_handles;
 std::string g_loaded_source;
 std::uint64_t g_loaded_fingerprint = 0;
 std::uint64_t g_reload_ordinal = 0;
+std::string g_runtime_abi;
 
 
 class EffectCallGuard {
@@ -333,8 +335,10 @@ int LoadImplementationFromSourceLocked(
         dlsym(handle, "AEHotLoader_ImplementationKey"));
     auto label_fn = reinterpret_cast<ImplLabelFn>(
         dlsym(handle, "AEHotLoader_ImplementationLabel"));
+    auto runtime_abi_fn = reinterpret_cast<ImplRuntimeAbiFn>(
+        dlsym(handle, "AEHotLoader_ImplementationRuntimeABI"));
 
-    if (!abi_fn || !state_abi_fn || !key_fn || !label_fn) {
+    if (!abi_fn || !state_abi_fn || !key_fn || !label_fn || !runtime_abi_fn) {
         if (detail) *detail = "Implementation hot-reload ABI exports are missing.";
         RetainRejectedCandidate(handle, runtime_path);
         return -4108;
@@ -390,6 +394,34 @@ int LoadImplementationFromSourceLocked(
         label_buffer,
         static_cast<std::size_t>(label_terminator - label_buffer));
 
+
+    char runtime_abi_buffer[512]{};
+    const int runtime_abi_result =
+        runtime_abi_fn(runtime_abi_buffer, sizeof(runtime_abi_buffer));
+    const auto* runtime_abi_terminator = static_cast<const char*>(
+        std::memchr(runtime_abi_buffer, '\0', sizeof(runtime_abi_buffer)));
+    if (runtime_abi_result != 0 ||
+        !runtime_abi_terminator ||
+        runtime_abi_buffer[0] == '\0') {
+        if (detail) {
+            *detail = "Implementation runtime ABI is invalid or not NUL-terminated.";
+        }
+        RetainRejectedCandidate(handle, runtime_path);
+        return -4115;
+    }
+    const std::string runtime_abi(
+        runtime_abi_buffer,
+        static_cast<std::size_t>(runtime_abi_terminator - runtime_abi_buffer));
+
+    if (!g_runtime_abi.empty() && runtime_abi != g_runtime_abi) {
+        if (detail) {
+            *detail =
+                "Implementation Rust runtime ABI mismatch; rebuild with the same pinned toolchain or restart with a matching shell.";
+        }
+        RetainRejectedCandidate(handle, runtime_path);
+        return -4116;
+    }
+
     // Quiescent swap: let already-running MFR/render calls finish and prevent
     // a mix of old/new implementation code from touching the same AE state.
     {
@@ -419,6 +451,9 @@ int LoadImplementationFromSourceLocked(
         g_loaded_handles.push_back(handle);
         g_loaded_source = source;
         g_loaded_fingerprint = fingerprint;
+        if (g_runtime_abi.empty()) {
+            g_runtime_abi = runtime_abi;
+        }
         g_effect_main.store(effect_main, std::memory_order_release);
     }
 
