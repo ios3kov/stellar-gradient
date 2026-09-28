@@ -601,8 +601,34 @@ PF_Err EffectMain(
 extern "C" __attribute__((visibility("default")))
 int AEHotLoader_ShellReload(char* output, std::size_t output_capacity) {
     try {
+        bool initialized_baseline = false;
+        std::string baseline_detail;
+
+        if (g_effect_main.load(std::memory_order_acquire) == nullptr) {
+            const int baseline_result =
+                EnsureImplementationLoaded(&baseline_detail);
+            if (baseline_result < 0) {
+                CopyMessage(output, output_capacity, baseline_detail);
+                Log(
+                    "reload baseline failed=" +
+                    std::to_string(baseline_result) + " " +
+                    baseline_detail);
+                return baseline_result;
+            }
+            initialized_baseline = baseline_result == 0;
+        }
+
         std::string detail;
-        const int result = LoadImplementation(false, &detail);
+        int result = LoadImplementation(false, &detail);
+
+        // If Reload itself had to establish the bundled baseline and there is
+        // no external change, report that initialization as the successful
+        // action. Later identical reloads still return unchanged=1.
+        if (initialized_baseline && result == 1) {
+            result = 0;
+            detail = baseline_detail;
+        }
+
         CopyMessage(output, output_capacity, detail);
         Log("reload result=" + std::to_string(result) + " " + detail);
         return result;
