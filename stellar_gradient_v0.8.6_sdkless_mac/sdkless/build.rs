@@ -35,9 +35,10 @@ fn main() {
     );
     let lock_fingerprint = hot_reload_lock_fingerprint(&manifest_dir);
     println!(
-        "cargo:rustc-env=AE_HOT_LOADER_RUNTIME_ABI={}|{}|after-effects=83dcc93734fd5db1335b6ec83cba7a6505a39dcc|lock={},
+        "cargo:rustc-env=AE_HOT_LOADER_RUNTIME_ABI={}|{}|after-effects=83dcc93734fd5db1335b6ec83cba7a6505a39dcc|lock={}",
         rustc_version,
-        target
+        target,
+        lock_fingerprint
     );
     println!("cargo:rerun-if-env-changed=AE_HOT_LOADER_IMPL_LABEL");
     // Rust 1.80+ validates cfg names at the destination crate. The
