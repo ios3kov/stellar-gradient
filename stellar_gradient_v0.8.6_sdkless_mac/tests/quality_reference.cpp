@@ -126,12 +126,13 @@ int main() {
     diffusion.diffusion_focus_px = 21.0f;
     diffusion.diffusion_feather_px = 56.0f;
 
-    // v0.9.7: intentional base-origin/linear-palette correction; see BASE_PALETTE_FIX.md.
+    // v0.9.8: intentional final-stage/channel-weighted grain; see GRAIN_CORRECTION.md.
+    // The grain-free base signature and all tolerances remain unchanged.
     // Prior signatures remain in Git history and the stage evidence record.
     // Update only when an intentional visual change has been reviewed.
     const Signature expected_base{{0.197606848364,0.0984812350607,0.229838477415,0.363154532137},{0.991337895393f,0.680429458618f,0.960008561611f,1.0f},0.68247069041};
-    const Signature expected_heavy{{0.283385199018,0.145518645682,0.217021554956,0.393068882846},{1.17579376698f,0.818551063538f,1.05664932728f,1.0f},0.797906756812};
-    const Signature expected_diffusion{{0.295177333564,0.150957449739,0.227051498241,0.410032585306},{1.17445683479f,0.810662865639f,1.05105912685f,1.0f},0.733425523617};
+    const Signature expected_heavy{{0.283231098352,0.145369753914,0.216848134085,0.393043567049},{1.16884696484f,0.811104536057f,1.0470533371f,1.0f},0.797259870452};
+    const Signature expected_diffusion{{0.295013711773,0.150800229448,0.22686405208,0.410006911297},{1.16848707199f,0.804933488369f,1.04231488705f,1.0f},0.732832073462};
 
     const Signature got_base = render_case(base, 7);
     const Signature got_heavy = render_case(heavy, 19);

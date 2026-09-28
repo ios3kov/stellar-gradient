@@ -45,6 +45,21 @@ inline float4 load_bgra(device const float4* src,constant SGParamsGPU& p,uint2 g
 } // AE GPU worlds are BGRA128
 inline void store_bgra(device float4* dst,int pitch,uint2 gid,float4 q){dst[gid.y*uint(pitch)+gid.x]=float4(q.z,q.y,q.x,q.w);}
 
+// Apply grain exactly once, only in the three final-output kernels. The glow
+// source/composed mip chain stays grain-free. Envelope is premultiplied without
+// division; RGB is not clamped, retaining the existing signed/HDR contract.
+inline float4 finish_grain(float4 pixel, constant SGParamsGPU& p, uint2 work_gid) {
+    if(p.grain_amount<=1.0e-6f || pixel.a<=0.0f) return pixel;
+    float2 pos=float2(int(work_gid.x)+p.origin_x,int(work_gid.y)+p.origin_y);
+    uint gx=uint(int(floor(pos.x*p.grain_inv_size))),gy=uint(int(floor(pos.y*p.grain_inv_size)));
+    uint h=h32(p.grain_seed ^ gx*73856093u ^ gy*19349663u);
+    float mono=(h01(h)-0.5f)*2.0f;
+    float3 chromatic=(float3(h01(h^0x68bc21ebu),h01(h^0x02e5be93u),h01(h^0x967a889bu))-0.5f)*2.0f;
+    float3 weight=0.3f*(0.15f*pixel.a+0.85f*clamp(pixel.rgb,float3(0.0f),float3(pixel.a)));
+    pixel.rgb+=mix(float3(mono),chromatic,p.grain_color)*p.grain_amount*weight;
+    return pixel;
+}
+
 inline float4 shade_base(device const float4* src, texture2d<float, access::read> depth_map, constant SGParamsGPU& p, uint2 gid) {
     float4 s=load_bgra(src,p,gid); float alpha=clamp01(s.a);
     // Match the CPU base pixel-origin convention; do not move the depth origin.
@@ -54,7 +69,6 @@ inline float4 shade_base(device const float4* src, texture2d<float, access::read
     if(p.turbulence_amount!=0){u+=fbm(layer_pos.x*p.turbulence_inv_x+p.turbulence_evo_x,layer_pos.y*p.turbulence_inv_y+p.turbulence_evo_y,p.turbulence_softness,0x6d2b79f5u)*p.turbulence_amount;}
     if(p.depth_enabled!=0u) u+=depth_map.read(gid).r*p.bulge;
     float3 c=palette(p,u);
-    if(p.grain_amount>0){uint gx=uint(int(floor(layer_pos.x*p.grain_inv_size))),gy=uint(int(floor(layer_pos.y*p.grain_inv_size)));uint h=h32(p.grain_seed ^ gx*73856093u ^ gy*19349663u);float mono=(h01(h)-.5f)*2.0f*p.grain_amount;float3 chr=float3(h01(h^0x68bc21ebu),h01(h^0x02e5be93u),h01(h^0x967a889bu));chr=(chr-.5f)*2.0f*p.grain_amount;c+=mix(float3(mono),chr,p.grain_color);}
     return float4(c*alpha,alpha);
 }
 
@@ -100,7 +114,7 @@ kernel void SGBaseOutKernel(device const float4* src [[buffer(0)]],
                             constant SGParamsGPU& p [[buffer(2)]],
                             uint2 gid [[thread_position_in_grid]]) {
     if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return;
-    store_bgra(dst,p.dst_pitch,gid,shade_base(src,depth_map,p,gid));
+    store_bgra(dst,p.dst_pitch,gid,finish_grain(shade_base(src,depth_map,p,gid),p,gid));
 }
 
 inline float4 composite_pixel(texture2d<float, access::read> base,
@@ -153,7 +167,7 @@ kernel void SGComposeOutKernel(texture2d<float, access::read> base [[texture(0)]
                                device float4* dst [[buffer(0)]],constant SGParamsGPU& p [[buffer(1)]],uint2 gid [[thread_position_in_grid]]){
     if(gid.x>=uint(p.out_width)||gid.y>=uint(p.out_height)) return;
     uint2 work_gid=uint2(gid.x+uint(p.crop_x),gid.y+uint(p.crop_y));
-    store_bgra(dst,p.dst_pitch,gid,composite_pixel(base,glowMip,p,work_gid));
+    store_bgra(dst,p.dst_pitch,gid,finish_grain(composite_pixel(base,glowMip,p,work_gid),p,work_gid));
 }
 
 kernel void SGDiffusionOutKernel(texture2d<float, access::sample> composedMip [[texture(0)]],
@@ -168,5 +182,5 @@ kernel void SGDiffusionOutKernel(texture2d<float, access::sample> composedMip [[
     if(p.diffusion_invert!=0) amount=1.0f-amount;
     float lod=amount*p.diffusion_lod;
     float4 q=composedMip.sample(s,uv,level(lod));
-    store_bgra(dst,p.dst_pitch,gid,mix(sharp,q,amount));
+    store_bgra(dst,p.dst_pitch,gid,finish_grain(mix(sharp,q,amount),p,work_gid));
 }

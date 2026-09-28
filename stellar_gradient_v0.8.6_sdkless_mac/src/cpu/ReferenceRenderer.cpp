@@ -65,6 +65,27 @@ void box_blur_v(const std::vector<float>& src, std::vector<float>& dst, int w, i
     }
 }
 
+// Final-stage, channel-weighted grain. Existing independent noise/seed policy is
+// retained; this is not pixel-identical to Cosmic's random pattern. For a premultiplied
+// channel v and alpha a, a*(0.15 + 0.85*clamp(v/a)) is evaluated without division.
+// Clamp the envelope only: preserve negative/HDR RGB and leave alpha unchanged.
+void finish_grain(float* pixel, int layer_x, int layer_y, const Params& p,
+                  float size, std::uint32_t seed) {
+    const float alpha = pixel[3];
+    if (alpha <= 0.0f) return;
+    const auto gx = static_cast<std::uint32_t>(static_cast<int>(std::floor(static_cast<float>(layer_x) / size)));
+    const auto gy = static_cast<std::uint32_t>(static_cast<int>(std::floor(static_cast<float>(layer_y) / size)));
+    const auto h = hash32(seed ^ gx * 73856093u ^ gy * 19349663u);
+    const float mono = (hash01(h) - 0.5f) * 2.0f;
+    constexpr std::uint32_t salts[3] = {0x68bc21ebu, 0x02e5be93u, 0x967a889bu};
+    for (int channel = 0; channel < 3; ++channel) {
+        const float chromatic = (hash01(h ^ salts[channel]) - 0.5f) * 2.0f;
+        const float noise = lerp(mono, chromatic, p.grain_color);
+        const float weight = 0.3f * (0.15f * alpha + 0.85f * std::clamp(pixel[channel], 0.0f, alpha));
+        pixel[channel] += noise * p.grain_amount * weight;
+    }
+}
+
 struct CpuRenderWorkspace {
     // Glow and diffusion never need their mip pyramids at the same time.
     // Reusing one pyramid cuts peak/retained scratch memory roughly in half.
@@ -192,19 +213,7 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                     u += depth * q.bulge;
                 }
 
-                Color3f c = adjust_sat_brightness(sample_palette(q.colors, u), q.saturation, q.brightness);
-                if (plan.grain) {
-                    const int gx = static_cast<int>(std::floor(static_cast<float>(img.origin_x + x) / grain_size));
-                    const int gy = static_cast<int>(std::floor(static_cast<float>(img.origin_y + y) / grain_size));
-                    const std::uint32_t h = hash32(seed ^ static_cast<std::uint32_t>(gx) * 73856093u ^ static_cast<std::uint32_t>(gy) * 19349663u);
-                    const float mono = (hash01(h) - 0.5f) * 2.0f * q.grain_amount;
-                    const float rr = (hash01(h ^ 0x68bc21ebu) - 0.5f) * 2.0f * q.grain_amount;
-                    const float gg = (hash01(h ^ 0x02e5be93u) - 0.5f) * 2.0f * q.grain_amount;
-                    const float bb = (hash01(h ^ 0x967a889bu) - 0.5f) * 2.0f * q.grain_amount;
-                    c.r += lerp(mono, rr, q.grain_color);
-                    c.g += lerp(mono, gg, q.grain_color);
-                    c.b += lerp(mono, bb, q.grain_color);
-                }
+                const Color3f c = adjust_sat_brightness(sample_palette(q.colors, u), q.saturation, q.brightness);
 
                 const float r = c.r * alpha;
                 const float g = c.g * alpha;
@@ -213,6 +222,9 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                 dst[x * 4 + 1] = g;
                 dst[x * 4 + 2] = bl;
                 dst[x * 4 + 3] = alpha;
+                if (plan.grain && !plan.glow && !plan.diffusion) {
+                    finish_grain(dst + x * 4, img.origin_x + x, img.origin_y + y, q, grain_size, seed);
+                }
 
                 if (plan.glow) {
                     const float lum = r * 0.2126f + g * 0.7152f + bl * 0.0722f;
@@ -255,6 +267,9 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                     dst[x * 4 + 1] = soft_clip(dst[x * 4 + 1] + glow[1] * q.glow_intensity, q.glow_soft_clip);
                     dst[x * 4 + 2] = soft_clip(dst[x * 4 + 2] + glow[2] * q.glow_intensity, q.glow_soft_clip);
                     dst[x * 4 + 3] = clamp01(dst[x * 4 + 3] + glow[3] * q.glow_intensity);
+                    if (plan.grain && !plan.diffusion) {
+                        finish_grain(dst + x * 4, img.origin_x + x, img.origin_y + y, q, grain_size, seed);
+                    }
                 }
             }
         });
@@ -280,6 +295,9 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                 float blurred[4];
                 diffusion_pyramid.sample_lod(static_cast<float>(x), static_cast<float>(y), lod, blurred);
                 for (int c = 0; c < 4; ++c) dst[x * 4 + c] = lerp(dst[x * 4 + c], blurred[c], amount);
+                if (plan.grain) {
+                    finish_grain(dst + x * 4, img.origin_x + x, img.origin_y + y, q, grain_size, seed);
+                }
             }
         }
     });

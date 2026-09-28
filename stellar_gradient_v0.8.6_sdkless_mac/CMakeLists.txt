@@ -58,3 +58,7 @@ add_test(NAME stellar_mfr_stress COMMAND stellar_mfr_stress)
 add_executable(stellar_palette_geometry tests/palette_geometry.cpp)
 target_link_libraries(stellar_palette_geometry PRIVATE stellar_core)
 add_test(NAME stellar_palette_geometry COMMAND stellar_palette_geometry)
+
+add_executable(stellar_grain_contract tests/grain_contract.cpp)
+target_link_libraries(stellar_grain_contract PRIVATE stellar_core)
+add_test(NAME stellar_grain_contract COMMAND stellar_grain_contract)
