@@ -1,45 +1,19 @@
-# Stellar Gradient — clean-room AE effect
+# Stellar Gradient — After Effects native effect
 
-Independent After Effects effect in the same broad category as Cosmic. It does not contain Cosmic source code, shaders, assets or licensing code.
+## Current development candidate: v0.9.6 (not a release)
 
-## Current status — v0.8.6 SDK-less Mac candidate
+The active standalone effect lives in `stellar_gradient_v0.8.6_sdkless_mac/`; the directory name is historical. Work on completion is isolated in `fix/stellar-release-gate`. The separate Hot Loader experiments are not part of this candidate.
 
-The render core remains the audited/frozen **v0.6 core**. The After Effects host, C ABI bridge and Metal bridge are now **v0.8.6 build 14** and no longer require the Adobe After Effects SDK.
+The render algorithms and saved parameter IDs are unchanged by v0.9.6. Package version, PiPL version and About now come from Cargo's package version. About includes the generated Build ID; the signed package includes commit, source state, source hashes and toolchain metadata. CI requires clean canonical source, a committed dependency lock and passing code-side checks before packaging.
 
-Completed before the real Mac host run:
+**Code compilation is not release approval.** Actual After Effects initialization, original-preset/output parity, GPU execution parity, lifecycle/migration and host profiling are still mandatory. See [completion gate](stellar_gradient_v0.8.6_sdkless_mac/docs/FINISH_GATE.md) and [build identity](stellar_gradient_v0.8.6_sdkless_mac/docs/BUILD_IDENTITY.md).
 
-- CPU FP32 quality reference locked;
-- strict / ASan+UBSan / TSan core regression: 7/7 PASS;
-- SDK-less C++ bridge parity: `max_err = 0`;
-- bridge 8/16/32-bpc + HDR checks: PASS;
-- bridge concurrent MFR test: `max_err = 0`;
-- release panic boundary hardened;
-- Rust/C ABI layout frozen and tested;
-- persistent AE parameter IDs pinned 1..49;
-- Metal fast-math disabled for quality paths;
-- v0.8 source/build inputs SHA-256 frozen.
+## Build / validation
 
-## Controls
+GitHub `Mac CI` validates core strict/sanitizer tests, native bridge, Rust host and clean ARM64 packaging. Its artifact is an internal candidate until the AE gate is complete. It contains the final ZIP SHA-256, commit and signed-payload manifest.
 
-- 5-color looping palette + presets
-- Angle / Cycles / Offset / Phase
-- Saturation / Brightness
-- Depth: Contrast / Bulge / Rounding
-- Turbulence
-- Glow: Radius / Falloff / Threshold / Intensity / Soft Clip
-- Grain: Amount / Size / Color / Animate
-- Optical Diffusion: Blur / Center / Focus / Feather / Invert
-- Render Engine: Auto / GPU / CPU
-- Quality: Preview / Auto / Final
+Requirements: Git, Python 3, modern Rust with edition 2024 support, and Apple Xcode command-line tools for macOS builds. Dependencies are locked in `sdkless/Cargo.lock`; release Cargo commands must use `--locked`.
 
-## CI
+The legacy `FIRST_MAC_BUILD.command` includes installation and environment changes and is **not the approved release path**. It has not passed the new clean-install safety gate. Do not use it as an automatic user-test handoff.
 
-GitHub Actions builds and tests the SDK-less macOS plug-in without the Adobe SDK. Successful runs upload `StellarGradient.plugin` as an artifact.
-
-## Mac build — no Adobe SDK
-
-Double-click:
-
-`FIRST_MAC_BUILD.command`
-
-See `docs/STATUS.md`, `docs/MAC_GATE_STATUS.md`, `docs/REGRESSION_V08.md`, and `docs/MAC_TEST.md`.
+Historical reports in STATUS.md remain historical and do not certify this candidate. No full Cosmic equivalence, production performance advantage, Windows compatibility or Intel runtime compatibility is claimed.

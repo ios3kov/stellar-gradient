@@ -276,7 +276,7 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.5\rAE init-safe params + exact Cosmic Depth + Metal"),
+            ae::Command::About => out_data.set_return_msg(concat!("Stellar Gradient v", env!("CARGO_PKG_VERSION"), "\rBuild ", env!("SG_BUILD_ID"))),
             ae::Command::UserChangedParam { param_index } => {
                 match params.type_at(param_index) {
                     Params::Presets => {
@@ -399,6 +399,31 @@ impl AdobePluginGlobal for Plugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn palette_choices_and_custom_are_well_defined() {
+        let mut all = Vec::new();
+        for which in 1..=11 {
+            let palette = palette_colors(which).expect("built-in palette");
+            assert!(!all.contains(&palette), "duplicate built-in palette");
+            all.push(palette);
+        }
+        for which in [-1, 0, 12, 13, 14, i32::MAX] {
+            assert!(palette_colors(which).is_none());
+        }
+        assert_eq!(palette_colors(5).unwrap(), [
+            [40, 13, 140], [55, 17, 191], [24, 14, 89], [7, 12, 38], [242, 75, 75],
+        ]);
+    }
+
+    #[test]
+    fn compiled_build_identity_is_explicit_and_fits_about() {
+        let id = env!("SG_BUILD_ID");
+        assert!(id.starts_with(&format!("sg-{}-", env!("CARGO_PKG_VERSION"))));
+        assert!(id.contains(env!("SG_BUILD_TARGET")));
+        assert!(matches!(env!("SG_SOURCE_STATE"), "clean" | "dirty" | "derived" | "unknown"));
+        assert!(id.len() + env!("CARGO_PKG_VERSION").len() + 30 < 256);
+    }
 
     #[test]
     fn ffi_layout_matches_cpp_contract() {

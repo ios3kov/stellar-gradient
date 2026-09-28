@@ -44,3 +44,12 @@ Research: use GitHub's native job dependencies and immutable artifacts rather th
 | Final delivery | BLOCKED | All mandatory gates PASS for unchanged candidate |
 
 Historical reports remain historical. A successful code-side CI run must not be described as release approval.
+
+
+## v0.9.6 identity implementation
+
+First new baseline CI (058d8f7, run 36449152224): all eight jobs PASS. The intermediate lock-only commit was not a candidate: its expanded source inventory requires the updated freeze manifest included with v0.9.6. No artifact from a failed gate is delivered.
+
+Implemented v0.9.6: generated runtime Build ID, synchronized Cargo/PiPL/About version, committed Cargo.lock, --locked CI, dirty/derived build refusal, signed-payload manifest, read-only final verification, ten negative/positive identity tests and additional Rust palette/identity tests. Local Python 10/10 and core strict 7/7 PASS; final current-commit CI pending at implementation time.
+
+AE gates are BLOCKED, not PASS: no After Effects runtime is connected in this execution environment. Original Cosmic.aex was not available from current attachments or the inspected Library file listing, so reference preset/output comparison cannot be rerun here. The condition for release is a controlled AE session with the exact candidate and accessible reference fixtures. Do not substitute these new tests for that session.
