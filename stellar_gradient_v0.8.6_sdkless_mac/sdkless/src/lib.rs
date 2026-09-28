@@ -101,7 +101,21 @@ ae::define_effect!(Plugin, (), Params);
 // Store the native pointer as an integer so the render-side context is plain,
 // immutable Send+Sync data. AE owns the device lifetime between GPU setup and
 // setdown; the pointed-to Metal context is read-only during frame dispatch.
-struct GpuContext { ptr: usize, supports_f32: bool }
+#[repr(C)]
+struct GpuContext {
+    ptr: usize,
+    generation: u64,
+    supports_f32: bool,
+}
+
+fn hot_reload_generation() -> u64 {
+    let mut hash = 1469598103934665603u64;
+    for byte in HOT_RELOAD_IMPL_LABEL.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(1099511628211u64);
+    }
+    hash
+}
 
 fn rc_to_err(rc: i32) -> Result<(), ae::Error> {
     match rc {
@@ -315,7 +329,9 @@ impl AdobePluginGlobal for Plugin {
                         let raw=extra.as_ptr();
                         if !raw.is_null() && !(*raw).input.is_null() && !(*(*raw).input).gpu_data.is_null() {
                             let g=&*((*(*raw).input).gpu_data as *const GpuContext);
-                            gpu_possible=state.params.quality==0 || g.supports_f32;
+                            if g.generation == hot_reload_generation() {
+                                gpu_possible=state.params.quality==0 || g.supports_f32;
+                            }
                         }
                     }
                 }
@@ -347,7 +363,11 @@ impl AdobePluginGlobal for Plugin {
                         unsafe { sg_metal_destroy(ptr); }
                         return Err(ae::Error::InternalStructDamaged);
                     }
-                    let context=Box::new(GpuContext{ptr:ptr as usize,supports_f32:f32_ok!=0});
+                    let context=Box::new(GpuContext{
+                        ptr:ptr as usize,
+                        generation:hot_reload_generation(),
+                        supports_f32:f32_ok!=0
+                    });
                     unsafe { (*(*raw).output).gpu_data=Box::into_raw(context) as *mut c_void; }
                     out_data.set_out_flag2(ae::OutFlags2::SupportsGpuRenderF32,true);
                 }
@@ -377,7 +397,11 @@ impl AdobePluginGlobal for Plugin {
                     if raw.is_null() || (*raw).input.is_null() || (*(*raw).input).gpu_data.is_null() {
                         return Err(ae::Error::InternalStructDamaged);
                     }
-                    &*((*(*raw).input).gpu_data as *const GpuContext)
+                    let context=&*((*(*raw).input).gpu_data as *const GpuContext);
+                    if context.generation != hot_reload_generation() {
+                        return Err(ae::Error::BadCallbackParameter);
+                    }
+                    context
                 };
                 let cb=extra.callbacks(); let Some(mut input)=cb.checkout_layer_pixels(0)? else { return Ok(()); };
                 let result=(|| {
@@ -396,6 +420,8 @@ impl AdobePluginGlobal for Plugin {
     }
 }
 
+const HOT_RELOAD_STATE_ABI: u64 = 2;
+
 const HOT_RELOAD_IMPL_LABEL: &str = match option_env!("AE_HOT_LOADER_IMPL_LABEL") {
     Some(value) => value,
     None => "stellar-gradient-dev",
@@ -408,7 +434,7 @@ pub extern "C" fn AEHotLoader_ImplementationABI() -> u32 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn AEHotLoader_ImplementationStateABI() -> u64 {
-    1
+    HOT_RELOAD_STATE_ABI
 }
 
 #[unsafe(no_mangle)]
@@ -470,5 +496,10 @@ mod tests {
         assert_eq!(std::mem::offset_of!(RenderStateC, input_rect), 184);
         assert_eq!(std::mem::offset_of!(RenderStateC, time_seconds), 248);
         assert_eq!(std::mem::offset_of!(RenderStateC, engine_mode), 260);
+        assert_eq!(std::mem::size_of::<GpuContext>(), 24);
+        assert_eq!(std::mem::align_of::<GpuContext>(), 8);
+        assert_eq!(std::mem::offset_of!(GpuContext, ptr), 0);
+        assert_eq!(std::mem::offset_of!(GpuContext, generation), 8);
+        assert_eq!(std::mem::offset_of!(GpuContext, supports_f32), 16);
     }
 }
