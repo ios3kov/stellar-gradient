@@ -53,6 +53,7 @@ typedef struct SGRenderStateC {
     double time_seconds;
     uint32_t frame_index;
     int32_t engine_mode; /* 1 Auto, 2 GPU, 3 CPU */
+    uint64_t generation; /* AE Hot Loader implementation generation */
 } SGRenderStateC;
 
 #ifdef __cplusplus
@@ -61,13 +62,14 @@ static_assert(sizeof(SGPoint2C) == 8, "SGPoint2C ABI changed");
 static_assert(sizeof(SGRectC) == 16, "SGRectC ABI changed");
 static_assert(sizeof(SGParamsC) == 184, "SGParamsC ABI changed");
 static_assert(alignof(SGParamsC) == 4, "SGParamsC alignment changed");
-static_assert(sizeof(SGRenderStateC) == 264, "SGRenderStateC ABI changed");
+static_assert(sizeof(SGRenderStateC) == 272, "SGRenderStateC ABI changed");
 static_assert(alignof(SGRenderStateC) == 8, "SGRenderStateC alignment changed");
 static_assert(offsetof(SGParamsC, diffusion_center) == 160, "SGParamsC ABI changed");
 static_assert(offsetof(SGParamsC, quality) == 180, "SGParamsC ABI changed");
 static_assert(offsetof(SGRenderStateC, input_rect) == 184, "SGRenderStateC ABI changed");
 static_assert(offsetof(SGRenderStateC, time_seconds) == 248, "SGRenderStateC ABI changed");
 static_assert(offsetof(SGRenderStateC, engine_mode) == 260, "SGRenderStateC ABI changed");
+static_assert(offsetof(SGRenderStateC, generation) == 264, "SGRenderStateC ABI changed");
 #endif
 
 /* Sanitizes values and applies AE downsample scaling to pixel-distance params. */
