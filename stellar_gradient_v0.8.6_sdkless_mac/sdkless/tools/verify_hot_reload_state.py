@@ -15,6 +15,21 @@ def require(pattern: str, text: str, label: str) -> str:
         raise SystemExit(f"missing {label}")
     return m.group(1)
 
+impl_protocol = int(require(
+    r'AEHotLoader_ImplementationABI\(\)\s*->\s*u32\s*\{\s*(\d+)\s*\}',
+    lib,
+    "implementation protocol ABI",
+))
+shell_protocol = int(require(
+    r'kImplementationAbi\s*=\s*(\d+)\s*;',
+    shell,
+    "shell implementation ABI",
+))
+if impl_protocol != 2 or shell_protocol != 2 or impl_protocol != shell_protocol:
+    raise SystemExit(
+        f"Protocol ABI drift: implementation={impl_protocol} shell={shell_protocol}; expected=2"
+    )
+
 def fields(struct_name: str):
     body = require(rf'struct\s+{struct_name}\s*\{{(.*?)\}}', lib, struct_name)
     out = []
