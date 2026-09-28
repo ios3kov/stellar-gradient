@@ -54,3 +54,7 @@ add_test(NAME stellar_tile_consistency COMMAND stellar_tile_consistency)
 add_test(NAME stellar_quality_reference COMMAND stellar_quality_reference)
 add_test(NAME stellar_hardening COMMAND stellar_hardening)
 add_test(NAME stellar_mfr_stress COMMAND stellar_mfr_stress)
+
+add_executable(stellar_palette_geometry tests/palette_geometry.cpp)
+target_link_libraries(stellar_palette_geometry PRIVATE stellar_core)
+add_test(NAME stellar_palette_geometry COMMAND stellar_palette_geometry)

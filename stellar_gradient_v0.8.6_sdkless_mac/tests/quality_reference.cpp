@@ -126,11 +126,12 @@ int main() {
     diffusion.diffusion_focus_px = 21.0f;
     diffusion.diffusion_feather_px = 56.0f;
 
-    // Baselines are generated from the audited CPU F32 reference renderer.
+    // v0.9.7: intentional base-origin/linear-palette correction; see BASE_PALETTE_FIX.md.
+    // Prior signatures remain in Git history and the stage evidence record.
     // Update only when an intentional visual change has been reviewed.
-    const Signature expected_base{{0.204531780142,0.111062071743,0.183825664775,0.363154532137},{0.991368830204f,0.680644214153f,0.960009276867f,1.0f},0.650493346755};
-    const Signature expected_heavy{{0.224864763109,0.119129548097,0.260343978208,0.389058099858},{1.1093994379f,0.781969428062f,1.05849254131f,1.0f},0.754382439322};
-    const Signature expected_diffusion{{0.234482478382,0.124349958217,0.271920968823,0.406525578987},{1.09005272388f,0.781263768673f,1.05771040916f,1.0f},0.686040455902};
+    const Signature expected_base{{0.197606848364,0.0984812350607,0.229838477415,0.363154532137},{0.991337895393f,0.680429458618f,0.960008561611f,1.0f},0.68247069041};
+    const Signature expected_heavy{{0.283385199018,0.145518645682,0.217021554956,0.393068882846},{1.17579376698f,0.818551063538f,1.05664932728f,1.0f},0.797906756812};
+    const Signature expected_diffusion{{0.295177333564,0.150957449739,0.227051498241,0.410032585306},{1.17445683479f,0.810662865639f,1.05105912685f,1.0f},0.733425523617};
 
     const Signature got_base = render_case(base, 7);
     const Signature got_heavy = render_case(heavy, 19);

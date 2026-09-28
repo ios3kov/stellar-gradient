@@ -172,9 +172,11 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
             float* dst = img.dst_rgba + static_cast<std::size_t>(y) * static_cast<std::size_t>(img.stride_floats);
             for (int x = 0; x < img.width; ++x) {
                 const float alpha = clamp01(src[x * 4 + 3]);
-                const float nx = (static_cast<float>(x) - cx) / bw;
-                const float ny = (static_cast<float>(y) - cy) / bh;
-                float u = (nx * dir_x + ny * dir_y) * q.cycles + q.offset + q.phase_deg / 360.0f;
+                // Base samples use the pixel origin (x/width, y/height), not pixel centers.
+                // Depth retains its independent center definition.
+                const float nx = (static_cast<float>(x) - cx - 0.5f) / bw;
+                const float ny = (static_cast<float>(y) - cy - 0.5f) / bh;
+                float u = (nx * dir_x + ny * dir_y) * q.cycles + 0.5f + q.offset + q.phase_deg / 360.0f;
 
                 if (plan.turbulence) {
                     const float layer_x = static_cast<float>(img.origin_x + x);

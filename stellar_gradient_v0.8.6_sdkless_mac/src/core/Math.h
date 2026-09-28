@@ -45,7 +45,8 @@ inline Color3f sample_palette(const std::array<Color3f,5>& c, float t) {
     const float x = t * 5.0f;
     const int i0 = static_cast<int>(std::floor(x)) % 5;
     const int i1 = (i0 + 1) % 5;
-    const float f = smooth01(x - std::floor(x));
+    // Palette segments are linear in working-space RGB; easing shifts their colors.
+    const float f = x - std::floor(x);
     return {lerp(c[i0].r,c[i1].r,f), lerp(c[i0].g,c[i1].g,f), lerp(c[i0].b,c[i1].b,f)};
 }
 

@@ -37,7 +37,7 @@ inline float h01(uint x){return float(h32(x)&0x00ffffffu)*(1.0f/16777215.0f);}
 inline float sm(float x){x=clamp01(x);return x*x*(3.0f-2.0f*x);}
 inline float n2(float x,float y,uint seed){int ix=int(floor(x)),iy=int(floor(y));float fx=sm(x-float(ix)),fy=sm(y-float(iy));auto hh=[&](int xx,int yy){return h01(uint(xx)*0x9e3779b9u ^ uint(yy)*0x85ebca6bu ^ seed);};float a=hh(ix,iy),b=hh(ix+1,iy),c=hh(ix,iy+1),d=hh(ix+1,iy+1);return mix(mix(a,b,fx),mix(c,d,fx),fy)*2.0f-1.0f;}
 inline float fbm(float x,float y,float soft,uint seed){float sum=0,amp=.5,norm=0;int oct=2+int(clamp01(soft)*3.0f);for(int i=0;i<5;i++){if(i>=oct)break;sum+=n2(x,y,seed+uint(i)*911u)*amp;norm+=amp;x*=2.03f;y*=2.03f;amp*=.5f;}return sum/max(norm,1e-6f);}
-inline float3 palette(constant SGParamsGPU& p,float t){t=t-floor(t);float z=t*5.0f;int i0=int(floor(z))%5,i1=(i0+1)%5;float f=sm(z-floor(z));float3 a=float3(p.colors[i0].r,p.colors[i0].g,p.colors[i0].b),b=float3(p.colors[i1].r,p.colors[i1].g,p.colors[i1].b),c=mix(a,b,f);float y=dot(c,float3(.2126,.7152,.0722));return (y+(c-y)*p.saturation)*p.brightness;}
+inline float3 palette(constant SGParamsGPU& p,float t){t=t-floor(t);float z=t*5.0f;int i0=int(floor(z))%5,i1=(i0+1)%5;float f=z-floor(z);float3 a=float3(p.colors[i0].r,p.colors[i0].g,p.colors[i0].b),b=float3(p.colors[i1].r,p.colors[i1].g,p.colors[i1].b),c=mix(a,b,f);float y=dot(c,float3(.2126,.7152,.0722));return (y+(c-y)*p.saturation)*p.brightness;}
 inline float soft_clip(float v,float s){return s>0.0f?v/(1.0f+s*max(0.0f,v-1.0f)):v;}
 inline float4 load_bgra(device const float4* src,constant SGParamsGPU& p,uint2 gid){
     int sx=int(gid.x)-p.src_offset_x, sy=int(gid.y)-p.src_offset_y;
@@ -49,8 +49,9 @@ inline void store_bgra(device float4* dst,int pitch,uint2 gid,float4 q){dst[gid.
 
 inline float4 shade_base(device const float4* src, texture2d<float, access::read> depth_map, constant SGParamsGPU& p, uint2 gid) {
     float4 s=load_bgra(src,p,gid); float alpha=clamp01(s.a);
-    float nx=(float(gid.x)-p.bound_cx)*p.inv_bw,ny=(float(gid.y)-p.bound_cy)*p.inv_bh;
-    float u=(nx*p.dir_x+ny*p.dir_y)*p.cycles+p.phase_offset;
+    // Match the CPU base pixel-origin convention; do not move the depth origin.
+    float nx=(float(gid.x)-p.bound_cx-0.5f)*p.inv_bw,ny=(float(gid.y)-p.bound_cy-0.5f)*p.inv_bh;
+    float u=(nx*p.dir_x+ny*p.dir_y)*p.cycles+0.5f+p.phase_offset;
     float2 layer_pos=float2(int(gid.x)+p.origin_x,int(gid.y)+p.origin_y);
     if(p.turbulence_amount!=0){u+=fbm(layer_pos.x*p.turbulence_inv_x+p.turbulence_evo_x,layer_pos.y*p.turbulence_inv_y+p.turbulence_evo_y,p.turbulence_softness,0x6d2b79f5u)*p.turbulence_amount;}
     if(p.depth_enabled!=0u) u+=depth_map.read(gid).r*p.bulge;

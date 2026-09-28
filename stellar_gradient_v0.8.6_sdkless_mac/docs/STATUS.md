@@ -284,3 +284,8 @@ The v0.8.8 UI corrections are ready for manual After Effects verification.
 - Native Optical Diffusion Center remains the only registered Center control.
 - Enum/disk IDs 41/42 remain reserved and are not reused.
 - Exact Cosmic Depth/Rounding CPU+Metal is unchanged.
+
+
+## 2026-09-28: native base correction v0.9.7 (development, not release)
+
+The returned 22-case feature isolation completed. Base-only reference analysis confirmed a half-cycle/pixel-origin shift and incorrect segment easing. CPU/Metal base math is corrected; independent geometry test fails on the parent and passes on the correction. Local strict and ASan/UBSan core: 8/8 each; bridge tests PASS. Full default/preset parity remains open, including Grain, Turbulence and Softness. See BASE_PALETTE_FIX.md and the isolated-run evidence. Actual AE/Metal execution of v0.9.7 is NOT RUN. User retains v0.9.6; no reinstall requested in this stage.
