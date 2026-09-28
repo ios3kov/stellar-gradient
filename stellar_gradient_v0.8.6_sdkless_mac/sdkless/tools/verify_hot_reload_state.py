@@ -15,6 +15,95 @@ def require(pattern: str, text: str, label: str) -> str:
         raise SystemExit(f"missing {label}")
     return m.group(1)
 
+
+def extract_function(text: str, signature: str) -> str:
+    start = text.find(signature)
+    if start < 0:
+        raise SystemExit(f"missing function {signature}")
+    opened = text.find("{", start)
+    if opened < 0:
+        raise SystemExit(f"missing function body {signature}")
+    depth = 0
+    in_string = False
+    quote = ""
+    escaped = False
+    line_comment = False
+    block_comment = 0
+    i = opened
+    while i < len(text):
+        c = text[i]
+        n = text[i + 1] if i + 1 < len(text) else ""
+        if line_comment:
+            if c == "\n":
+                line_comment = False
+            i += 1
+            continue
+        if block_comment:
+            if c == "*" and n == "/":
+                block_comment -= 1
+                i += 2
+                continue
+            if c == "/" and n == "*":
+                block_comment += 1
+                i += 2
+                continue
+            i += 1
+            continue
+        if in_string:
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
+            elif c == quote:
+                in_string = False
+            i += 1
+            continue
+        if c == "/" and n == "/":
+            line_comment = True
+            i += 2
+            continue
+        if c == "/" and n == "*":
+            block_comment = 1
+            i += 2
+            continue
+        if c in ('"', "'"):
+            in_string = True
+            quote = c
+            i += 1
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+        i += 1
+    raise SystemExit(f"unbalanced function body {signature}")
+
+
+def normalized_code(text: str) -> str:
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    text = re.sub(r'//[^\n]*', '', text)
+    return re.sub(r'\s+', '', text)
+
+
+def fnv1a64(text: str) -> int:
+    value = 1469598103934665603
+    for byte in text.encode("utf-8"):
+        value ^= byte
+        value = (value * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+    return value
+
+
+EXPECTED_PARAMS_SETUP_FNV64 = 0x1eca99aaffa95737
+params_setup_hash = fnv1a64(normalized_code(extract_function(lib, "fn params_setup(")))
+if params_setup_hash != EXPECTED_PARAMS_SETUP_FNV64:
+    raise SystemExit(
+        "params_setup host contract changed; this cannot be live-reloaded safely. "
+        "Bump StateABI, rebuild/install the shell, and update the verifier intentionally: "
+        f"expected=0x{EXPECTED_PARAMS_SETUP_FNV64:016x} actual=0x{params_setup_hash:016x}"
+    )
+
 impl_protocol = int(require(
     r'AEHotLoader_ImplementationABI\(\)\s*->\s*u32\s*\{\s*(\d+)\s*\}',
     lib,
@@ -117,6 +206,33 @@ for evidence in [
 ]:
     if evidence not in lib:
         raise SystemExit(f"missing hot-reload state/layout evidence: {evidence}")
+
+
+build_rs = pathlib.Path(sys.argv[1]).parent.parent / "build.rs"
+build_text = build_rs.read_text()
+global_flags = require(
+    r'Property::AE_Effect_Global_OutFlags\((.*?)\),\s*Property::AE_Effect_Global_OutFlags_2',
+    build_text,
+    "PiPL Global OutFlags",
+)
+normalized_global = re.sub(r'\s+', '', global_flags)
+expected_global = "OutFlags::DeepColorAware|OutFlags::NonParamVary"
+if normalized_global != expected_global:
+    raise SystemExit(
+        f"PiPL Global OutFlags changed; reinstall/restart required: expected={expected_global} actual={normalized_global}"
+    )
+
+out2_body = require(
+    r'Property::AE_Effect_Global_OutFlags_2\((.*?)\)\s*,\s*Property::AE_Effect_Match_Name',
+    build_text,
+    "PiPL Global OutFlags2",
+)
+actual_out2 = re.findall(r'OutFlags2::([A-Za-z0-9_]+)', out2_body)
+expected_out2 = ["SupportsQueryDynamicFlags","ParamGroupStartCollapsedFlag","RevealsZeroAlpha","SupportsSmartRender","FloatColorAware","SupportsThreadedRendering","SupportsGetFlattenedSequenceData","SupportsGpuRenderF32"]
+if actual_out2 != expected_out2:
+    raise SystemExit(
+        f"PiPL OutFlags2 changed; reinstall/restart required: expected={expected_out2} actual={actual_out2}"
+    )
 
 print(
     f"hot-reload state: PASS StateABI={impl_abi} "
