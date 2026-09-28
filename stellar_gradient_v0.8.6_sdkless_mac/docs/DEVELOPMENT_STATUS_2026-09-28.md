@@ -1,93 +1,96 @@
 # Stellar Gradient — verified checkpoint, 2026-09-28
 
-**Not a release.** Work branch: `fix/stellar-release-gate`, draft PR #1. Main and
-Hot Loader branches remain unchanged. The user still has the v0.9.6 test build;
-no v0.9.8 installation or actual AE/GPU execution has occurred in this stage.
-This is a post-build documentation record, not a new native candidate.
+**v0.9.9 is an internal candidate, not a release.** Work branch:
+`fix/stellar-release-gate`, draft PR #1. Main and Hot Loader are unchanged.
+The user retains v0.9.6; no new user installation or AE/GPU execution took place.
+This document records completed code-side checks without relabelling the binary
+to a later documentation commit.
 
-## Last code-side validated candidate
+## Exact tested candidate
 
-- Version: **0.9.8**.
-- Commit: `d7e035ddf8751deb1c43c54d1cff050036890d64`.
-- Clean source tree: `275f541753a4c403beb2a50d73539a4f51be6ecf`.
-- Build ID: `sg-0.9.8-d7e035ddf875-clean-265b2ab6504b-aarch64-apple-darwin-36483266159.1`.
-- Push CI: https://github.com/ios3kov/stellar-gradient/actions/runs/36483266159 .
-- Internal ARM64 artifact: **10997866159**.
-- Artifact ZIP SHA-256: `73046dc7f015901308a3892b0685f35c3004ac89e92f7d783a945a6f2f0bdb56`.
-- Plugin ZIP SHA-256: `0fb4285b7fe8fe0824f12dfa3b2d62d9be584aa5c019eb0c145ba36d156e5aec`.
+- Commit: `a147aafbf2b461ebe1890dd8b5a48e9a09976ebd`.
+- Clean tree: `b9b0bd4be2692d8429aae18be09c828c9ab7b4ad`.
+- Build ID: `sg-0.9.9-a147aafbf2b4-clean-241c9621fb5a-aarch64-apple-darwin-36486084430.1`.
+- Push CI: https://github.com/ios3kov/stellar-gradient/actions/runs/36486084430 .
+- Internal ARM64 artifact: **10999241777**.
+- Artifact ZIP SHA-256: `05f387bf08d2806d39fa30aa9696b3e419ebbd8b2b974b66eb056e25b8cfb599`.
+- Plugin ZIP SHA-256: `da9039f3a4fc035c48623e10dab30ba43f5b1c77ccb3ef303af8ae933816d3d4`.
 
-The downloaded artifact's six payload files, embedded version/commit/Build ID,
-ARM64 Mach-O header, and all 27 compiled-source hashes were independently checked.
-The source artifact 10998160700 reproduces all 138 files of the tested tree;
-its source.tar.gz SHA-256 is
-`da6c252a36ddd74c9807a5bd6eea92899f48728556299c1c9c5ae924aad37a7a`.
-No downloaded binary was edited or re-signed. Ad-hoc signature validation is not
-notarization or proof that the user's AE loaded this binary.
+Downloaded artifact checks passed: six payload hashes, compiled Build ID,
+plist/JSON version and commit, ARM64 Mach-O header, and all 29 recorded native
+source hashes. The binary was not executed, modified or re-signed after download.
+CI signature verification is not notarization or evidence of a user AE load.
 
-## Work completed in this continuation
+## Metal buffer defect corrected and reproduced
 
-The previous local v0.9.8 grain patch is now published in the work branch
-(code restore commit `0ee59603e3f241885d54f8ca749f865effaa3c50`). All source bytes
-were verified against the original saved patch; nothing was refitted or discarded.
-The correction keeps v0.9.7's base palette and applies channel-weighted Grain once,
-after Glow/Diffusion. Random field, defaults, parameter IDs and ABI are unchanged.
-Temporary transfer files and workflow have been removed from the current tree.
+The old expression `rowbytes % sizeof(float) * 4` allowed 36-byte rows although
+the current float4 shaders need a whole 16-byte-pixel pitch. It then truncated
+the pitch to 32 bytes. The actual old wrapper at `d7e035d` was compiled on macOS
+and called with Objective-C metadata doubles: the reproducer reached a command
+buffer request (`result=-3`, one call) instead of rejecting the layout.
+The same test against v0.9.9 returns `-1` with zero queue calls.
+No actual GPU memory access or user crash is asserted by this experiment.
 
-CI now compiles the actual Metal shading language source, not only the ObjC++
-wrapper containing its string. The required negative shader control also runs.
-An additional evidence defect was found during validation: upload-artifact ignored
-logs under `.ci-native`. The exact log glob now explicitly includes hidden files
-and missing logs fail the upload. The final artifact 10997326583 was downloaded:
-all six logs are present, including compilation and deliberate-error diagnostics.
-No broad hidden-directory upload or user-machine security change is involved.
+`MetalValidation.hpp` now checks independent input/output pitches, minimum row
+capacity, final logical pixel byte spans, uint32 shader index overflow, signed
+geometry arithmetic and valid output crop. Both MTLBuffer lengths are checked
+before pipeline access, texture allocation or command-buffer creation. Padding,
+unequal input/output pitches and safe translated/empty semantic bounds remain
+supported; unused padding after the final visible pixel is not required.
 
-## Observed checks
+These are requirements of our existing shader representation, not a universal
+AE CPU pointer-alignment rule. Arbitrary four-byte-only pitches fail explicitly;
+no silent rounding, buffer copies, retries or new CPU fallback were introduced.
+CPU rendering, Metal shader math, parameter defaults/IDs, ABI, dependencies,
+and all previous golden images/tolerances are unchanged in this stage.
+See [design and acceptance](METAL_BUFFER_VALIDATION.md).
 
-| Check | Status and scope |
+## Observed validation
+
+| Check | Status / scope |
 | --- | --- |
-| CI source/static/strict/ASan+UBSan/TSan/native/Rust/package jobs | **PASS, 8/8** at the exact candidate above |
-| Core suite | **PASS, 9/9** in each CI core mode; local strict rerun also 9/9 |
-| Build identity fixtures | **PASS, 10/10**; no real AE session implied |
-| Native CPU bridge parity and concurrency | **PASS**, max_err=0; no GPU execution implied |
-| Actual MSL compile + library link | **PASS**, fast math disabled; Apple Metal 32023.620, SDK 15.5 |
-| Deliberately invalid shader control | **PASS**, compiler rejects expected #error |
-| Source/header/grain placement and freeze | **PASS**, 56 frozen native-project inputs |
-| Downloaded source, log and binary artifact integrity | **PASS**, checked against exact commit and manifests |
-| New v0.9.8 AE session / real GPU dispatch | **NOT RUN** |
-| Full Cosmic visual equivalence / release | **Not approved** |
+| Push CI source/static/core/native/Rust/package | **8/8 jobs PASS** for a147aaf |
+| Strict, ASan/UBSan and TSan core | **10/10 PASS** each locally and in CI |
+| Scalar layout oracle / edge cases | **681,372 checks, zero failures**, no GPU allocation |
+| Actual macOS bridge entry with metadata doubles | **102/102 PASS**, repeated under ASan/UBSan |
+| Old-wrapper row-pitch reproducer | Expected failure observed; corrected wrapper passes |
+| Identity fixtures / native source freeze | **10/10 PASS / 59 files PASS** |
+| CPU bridge parity / formats / MFR | **PASS**, parity and concurrency max_err=0 |
+| Real MSL compile/link and deliberate-error control | **PASS**, no shader execution implied |
+| Downloaded source / logs / native artifact | **PASS**, exact hashes and source association |
+| v0.9.9 AE / actual GPU render / runtime Build ID | **NOT RUN / NOT VERIFIED** |
+| Full Cosmic equivalence / release | **Not approved** |
 
-The Metal IR library is 70,206 bytes; SHA-256
-`7625442fb9c92338f409140b3303d7860154f907b7666528198e14a3a869b27f`.
-The compiled source SHA-256 is
-`828e90210a1c1693987fa74a6cd59973df802a77b7d7baf2e5cf4f32896b9680`.
-Native logs artifact SHA-256:
-`a6b5826f08034ec2017f3fbec26b95ea721a9ad6e0b6f0af5294462968dba484`.
-Rust and Cargo were 1.98.1. These recorded toolchains do not imply hardware-wide
-reproducibility or compatibility with all older macOS/Metal versions.
+Source artifact **10998572690** contains 143 files; it matches the local tested
+change and the two preserved upstream documentation blobs. Expected Git tree was
+also verified before push. Source.tar.gz SHA-256:
+`90291c40a81e48339317c25bfff177087e0d80dd55d250cbc7febaee1af23b71`.
+Native log artifact **10999651464** was downloaded; all ten logs are present,
+including old/new reproducer and entry sanitizer results. Its SHA-256 is
+`6ad8144eb7030a5079f993a090a2a9788509bde677478fe99f6dbec396f20bf4`.
+Rust/Cargo: 1.98.1; SDK: 15.5; Apple Metal: 32023.620. Unchanged MSL library:
+70,206 bytes, SHA-256 `7625442fb9c92338f409140b3303d7860154f907b7666528198e14a3a869b27f`.
+Machine-readable evidence: [METAL_099_VERIFICATION.json](evidence/METAL_099_VERIFICATION.json).
 
-## Remaining work, not concealed by green CI
+## Still open
 
-1. Establish the reference's host-to-noise coordinate mapping, then correct and
-   independently test Turbulence and Softness. No guessed scale factor or new
-   blur has been added. The existing captured 22-case isolation data is retained.
-2. Resolve Depth/ROI rounding, Glow/Diffusion and complete presets/UI differences.
-3. Harden bridge input validation. Static review found that the Metal row-byte
-   expression `rowbytes % sizeof(float) * 4` tests divisibility by four, not by a
-   complete 16-byte pixel. This requires a reproducer and correction before the
-   next native handoff; no real-host failure is asserted from this observation.
-4. Verify the exact new loaded Build ID, real CPU/GPU and alpha/HDR output,
-   lifecycle/restart/Undo/save/reopen/migration, then real-host performance.
+Turbulence and Softness are not corrected. Existing 22 reference captures remain
+available; no repeat diagnostic is requested. Depth/ROI rounding, Glow/Diffusion,
+full presets/UI, numerical alpha/HDR and executed CPU/GPU parity, runtime identity,
+clean install/restart/Undo/save/reopen/migration and real-host profiling remain open.
+CPU bridge validation, device policy, aliased buffers and arbitrary invalid object
+pointers are not covered by this Metal descriptor patch. No blanket GPU-safety
+or performance improvement is claimed. Historical small CPU performance
+regressions remain unresolved.
 
-Historical grain measurements remain limited to one static RGB8 fixture: mean
-absolute Grain change 3.079 for local v0.9.8 versus 3.072 for Cosmic; their random
-patterns differ. Historical short CPU full-render timings regressed in some cases;
-this continuation does not fix or reclassify that cost. Old v0.9.6 AE evidence is
-not reused as v0.9.8 runtime proof. No user rerun or reinstall is requested here.
+Previous v0.9.7 base-palette and v0.9.8 final-stage channel-weighted Grain fixes
+are retained. The historical grain amplitude comparison is still limited to one
+RGB8 fixture (3.079 local versus 3.072 Cosmic, with different random patterns).
+The last actual user host tests exercised v0.9.6, not this candidate. No original
+Cosmic binary/shaders/licensing code, user preferences/caches/security settings,
+or main/Hot Loader branches were changed or published by this work.
 
-## Evidence precedence
-
-This current post-build record supersedes the old publication/Mac-NOT-RUN lines
-in the earlier source-stage `GRAIN_CORRECTION.md` and the pre-build
-`CHECKPOINT_098_MAC.md` only for the candidate explicitly identified above.
-Earlier reports remain historical. Later documentation-only commits do not
-relabel this binary, its Build ID, or any PR-merge artifact.
+Earlier reports are historical. The previous v0.9.8 checkpoint remains in Git
+at `79e17721e612bd3c3d7aae457019256b4444c7c6`. This record supersedes only the
+Metal-validation and build status for the exact candidate named above. Later
+PR-merge or documentation-triggered artifacts must not silently substitute for it.
