@@ -28,21 +28,34 @@ python3 "$ROOT/sdkless/tools/verify_hot_reload_state.py" \
   "$ROOT/sdkless/src/lib.rs" \
   "$ROOT/sdkless/shell/StellarGradientShell.cpp"
 
+USE_RUSTUP=0
 if command -v rustup >/dev/null 2>&1; then
   rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal >/dev/null
+  USE_RUSTUP=1
 else
   active_rust="$(rustc --version 2>/dev/null | awk '{print $2}' || true)"
   [[ "$active_rust" == "$RUST_TOOLCHAIN" ]] || {
     echo "ERROR: Rust $RUST_TOOLCHAIN required for hot-reload Runtime ABI compatibility."
     exit 4
   }
+  command -v cargo >/dev/null 2>&1 || {
+    echo "ERROR: cargo is required."
+    exit 4
+  }
 fi
 
 echo "Building Stellar Gradient implementation: $LABEL"
-CARGO_TARGET_DIR="$TARGET" cargo +"$RUST_TOOLCHAIN" build \
-  --release \
-  --target "$TRIPLE" \
-  --manifest-path "$HOST_BUILD/Cargo.toml"
+if (( USE_RUSTUP )); then
+  CARGO_TARGET_DIR="$TARGET" cargo +"$RUST_TOOLCHAIN" build \
+    --release \
+    --target "$TRIPLE" \
+    --manifest-path "$HOST_BUILD/Cargo.toml"
+else
+  CARGO_TARGET_DIR="$TARGET" cargo build \
+    --release \
+    --target "$TRIPLE" \
+    --manifest-path "$HOST_BUILD/Cargo.toml"
+fi
 
 [[ -f "$SOURCE" ]] || { echo "ERROR: missing implementation: $SOURCE"; exit 2; }
 
