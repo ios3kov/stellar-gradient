@@ -200,6 +200,7 @@ jobs:
           cp target-hot-candidate/aarch64-apple-darwin/release/libstellar_gradient_host.dylib package/StellarGradientImpl-candidate.dylib
           cp "$SRC/sdkless/tools/install_hot_loader_package.command" package/INSTALL_HOT_LOADER.command
           cp "$SRC/sdkless/tools/stage_packaged_hot_reload.command" package/STAGE_CANDIDATE.command
+          cp "$SRC/sdkless/Cargo.lock" package/Cargo.lock.generated
           chmod +x package/INSTALL_HOT_LOADER.command package/STAGE_CANDIDATE.command
           codesign --force --sign - package/StellarGradientImpl-candidate.dylib
           ditto -c -k --sequesterRsrc --keepParent package StellarGradient-hot-loader-shell-package.zip
