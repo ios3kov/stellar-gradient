@@ -119,6 +119,15 @@ fn hot_reload_generation() -> u64 {
     HOT_RELOAD_GENERATION.load(Ordering::Acquire)
 }
 
+#[cfg(target_os = "macos")]
+unsafe fn destroy_gpu_context(context_ptr: *mut GpuContext) {
+    if context_ptr.is_null() {
+        return;
+    }
+    let g = unsafe { Box::from_raw(context_ptr) };
+    unsafe { (g.destroy_fn)(g.ptr as *mut c_void) };
+}
+
 fn rc_to_err(rc: i32) -> Result<(), ae::Error> {
     match rc {
         0 => Ok(()),
@@ -386,8 +395,7 @@ impl AdobePluginGlobal for Plugin {
                             let input=(*raw).input;
                             let context_ptr=(*input).gpu_data as *mut GpuContext;
                             (*input).gpu_data=std::ptr::null_mut();
-                            let g=Box::from_raw(context_ptr);
-                            (g.destroy_fn)(g.ptr as *mut c_void);
+                            destroy_gpu_context(context_ptr);
                         }
                     }
                 }
@@ -491,6 +499,33 @@ pub extern "C" fn AEHotLoader_SetGeneration(generation: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn hot_reload_generation_and_creator_teardown_are_stable() {
+        use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+
+        static DESTROY_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+        unsafe extern "C" fn test_destroy(context: *mut c_void) {
+            assert_eq!(context as usize, 0x5678);
+            DESTROY_CALLS.fetch_add(1, AtomicOrdering::SeqCst);
+        }
+
+        AEHotLoader_SetGeneration(0xBEEF_0123_4567_89AB);
+        assert_eq!(hot_reload_generation(), 0xBEEF_0123_4567_89AB);
+
+        DESTROY_CALLS.store(0, AtomicOrdering::SeqCst);
+        let context = Box::new(GpuContext {
+            ptr: 0x5678,
+            generation: hot_reload_generation(),
+            destroy_fn: test_destroy,
+            supports_f32: true,
+        });
+        let context_ptr = Box::into_raw(context);
+        unsafe { destroy_gpu_context(context_ptr) };
+        assert_eq!(DESTROY_CALLS.load(AtomicOrdering::SeqCst), 1);
+    }
 
     #[test]
     fn ffi_layout_matches_cpp_contract() {
