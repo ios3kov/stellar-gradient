@@ -5,6 +5,7 @@ on:
     branches: [main, fix/stellar-release-gate]
     paths:
       - ".github/workflows/mac-ci.yml"
+      - ".github/scripts/compile-metal.sh"
       - ".gitignore"
       - "stellar_gradient_v0.8.6_sdkless_mac/CMakeLists.txt"
       - "stellar_gradient_v0.8.6_sdkless_mac/FIRST_MAC_BUILD.command"
@@ -17,6 +18,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/mac-ci.yml"
+      - ".github/scripts/compile-metal.sh"
       - ".gitignore"
       - "stellar_gradient_v0.8.6_sdkless_mac/**"
   workflow_dispatch:
@@ -63,6 +65,7 @@ jobs:
         working-directory: ${{ env.SRC }}
         run: |
           python3 tools/test_build_identity.py
+          python3 tools/verify_grain_pipeline.py --self-test
           python3 tools/verify_metadata.py
           python3 tools/verify_code_freeze.py
           python3 tools/verify_metal_perf.py
@@ -128,6 +131,11 @@ jobs:
             ".ci-native/${test}" | tee ".ci-native/${test}.log"
           done
           "${CXX[@]}" -c sdkless/bridge/MetalBridge.mm -o .ci-native/MetalBridge.o
+      - name: Compile actual runtime Metal shader (not GPU execution)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /bin/bash .github/scripts/compile-metal.sh "$SRC/src/gpu/StellarGradientMetal.metal" "$SRC/.ci-native" 2>&1 | tee "$SRC/.ci-native/metal-compile.log"
       - name: ASan + UBSan bridge smoke
         working-directory: ${{ env.SRC }}
         shell: bash
