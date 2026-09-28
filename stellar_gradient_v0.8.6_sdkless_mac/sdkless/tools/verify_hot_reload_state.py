@@ -134,7 +134,7 @@ impl_abi = int(require(r'const\s+HOT_RELOAD_STATE_ABI:\s*u64\s*=\s*(\d+)\s*;', l
 shell_abi = int(require(r'kImplementationStateAbi\s*=\s*(\d+)\s*;', shell, "shell StateABI"))
 if impl_abi != shell_abi:
     raise SystemExit(f"StateABI drift: implementation={impl_abi} shell={shell_abi}")
-if impl_abi != 3:
+if impl_abi != 4:
     raise SystemExit(f"unexpected Stellar StateABI {impl_abi}; update verifier intentionally when schema changes")
 
 if "ae::define_effect!(Plugin, (), Params);" not in lib:
@@ -180,7 +180,7 @@ expected = {
     "RenderStateC": [
         ("params","ParamsC"),("input_rect","RectC"),("source_max_rect","RectC"),
         ("output_rect","RectC"),("work_rect","RectC"),("time_seconds","f64"),
-        ("frame_index","u32"),("engine_mode","i32"),
+        ("frame_index","u32"),("engine_mode","i32"),("generation","u64"),
     ],
     "GpuContext": [
         ("ptr","usize"),("generation","u64"),
@@ -198,6 +198,7 @@ for name, wanted in expected.items():
 for evidence in [
     "size_of::<RenderStateC>()",
     "offset_of!(RenderStateC, engine_mode)",
+    "offset_of!(RenderStateC, generation)",
     "size_of::<GpuContext>()",
     "offset_of!(GpuContext, generation)",
     "offset_of!(GpuContext, destroy_fn)",
