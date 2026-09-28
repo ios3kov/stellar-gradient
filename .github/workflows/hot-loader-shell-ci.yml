@@ -151,7 +151,28 @@ jobs:
               char unchanged[2048]{};
               const int third = reload(unchanged, sizeof(unchanged));
               std::printf("unchanged=%d %s\n", third, unchanged);
-              return third == 1 ? 0 : 16;
+              if (third != 1) return 16;
+
+              std::filesystem::remove(current);
+
+              char rollback[2048]{};
+              const int rollback_result = reload(rollback, sizeof(rollback));
+              std::printf("rollback=%d %s\n", rollback_result, rollback);
+              if (rollback_result != 0 ||
+                  std::strstr(rollback, "stellar-default") == nullptr) {
+                  return 17;
+              }
+
+              char rollback_unchanged[2048]{};
+              const int rollback_unchanged_result =
+                  reload(rollback_unchanged, sizeof(rollback_unchanged));
+              std::printf(
+                  "rollback-unchanged=%d %s\n",
+                  rollback_unchanged_result,
+                  rollback_unchanged);
+              if (rollback_unchanged_result != 1) return 18;
+
+              return 0;
           }
           CPP
 
