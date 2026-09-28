@@ -31,11 +31,31 @@ for app_plugins in /Applications/Adobe\ After\ Effects*.app/Contents/Plug-ins; d
 done
 
 typeset -a matches
+typeset -A match_seen
+
+record_match() {
+  local found="$1"
+  if [[ -z "${match_seen[$found]-}" ]]; then
+    match_seen[$found]=1
+    matches+=("$found")
+  fi
+}
+
 for root in "${search_roots[@]}"; do
   [[ -d "$root" ]] || continue
+
   while IFS= read -r found; do
-    matches+=("$found")
+    record_match "$found"
   done < <(find "$root" -type d -name "StellarGradient.plugin" -prune -print 2>/dev/null)
+
+  while IFS= read -r found; do
+    plist="$found/Contents/Info.plist"
+    [[ -f "$plist" ]] || continue
+    found_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist" 2>/dev/null || true)"
+    if [[ "$found_id" == "com.stellarlabs.StellarGradient" ]]; then
+      record_match "$found"
+    fi
+  done < <(find "$root" -type d -name "*.plugin" -prune -print 2>/dev/null)
 done
 
 if (( ${#matches[@]} > 1 )); then
