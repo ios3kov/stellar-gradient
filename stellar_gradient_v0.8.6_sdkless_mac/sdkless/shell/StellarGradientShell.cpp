@@ -498,16 +498,27 @@ int LoadImplementation(bool force, std::string* detail) {
         initialized_baseline = baseline_result == 0;
     }
 
+    const std::string bundled_source = DefaultImplementationPath();
     const std::string source = SelectSource();
-    if (source == DefaultImplementationPath()) {
+    if (source == bundled_source) {
         if (initialized_baseline) {
             if (detail) *detail = baseline_detail;
             return 0;
         }
-        if (detail) {
-            *detail = "Bundled implementation active; no external candidate staged.";
+
+        if (g_loaded_source == bundled_source) {
+            if (detail) {
+                *detail = "Bundled implementation active; no external candidate staged.";
+            }
+            return 1;
         }
-        return 1;
+
+        // Removing current.dylib is an explicit rollback request. Reload the
+        // bundled implementation rather than merely changing the status text.
+        return LoadImplementationFromSourceLocked(
+            bundled_source,
+            false,
+            detail);
     }
 
     return LoadImplementationFromSourceLocked(source, force, detail);
