@@ -1,5 +1,6 @@
 #include "StellarBridge.h"
 #include "BridgeInternal.hpp"
+#include "MetalValidation.hpp"
 #include "../../src/core/Sanitize.h"
 #include "../../src/gpu/StellarGradientMetalSource.generated.h"
 #include <algorithm>
@@ -123,23 +124,27 @@ void sg_metal_destroy(void* context) {
 int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, void* output_buffer,
                         const SGRenderStateC* state, int32_t iw, int32_t ih, int32_t irb,
                         int32_t ow, int32_t oh, int32_t orb) {
-    if(!context||!command_queue||!input_buffer||!output_buffer||!state||iw<=0||ih<=0||ow<=0||oh<=0) return -1;
-    if(irb<=0||orb<=0||irb%(int32_t)sizeof(float)*4!=0||orb%(int32_t)sizeof(float)*4!=0) return -1;
+    if(!context||!command_queue||!input_buffer||!output_buffer||!state) return -1;
+    sgbridge::MetalRenderLayout layout;
+    if(!sgbridge::metal_render_layout(*state,iw,ih,irb,ow,oh,orb,layout)) return -1;
+    // MTLBuffer.length is a byte count. Validate both complete logical planes
+    // before touching pipelines, allocating textures or creating a command buffer.
+    id<MTLBuffer> src=(id<MTLBuffer>)input_buffer;
+    id<MTLBuffer> dst=(id<MTLBuffer>)output_buffer;
+    if(!sgbridge::metal_buffers_fit(layout,static_cast<uint64_t>(src.length),
+                                   static_cast<uint64_t>(dst.length))) return -1;
     NSAutoreleasePool* pool=[[NSAutoreleasePool alloc] init];
     SGMetalContext* g=static_cast<SGMetalContext*>(context);
     id<MTLCommandQueue> queue=(id<MTLCommandQueue>)command_queue;
     id<MTLDevice> dev=queue.device;
-    id<MTLBuffer> src=(id<MTLBuffer>)input_buffer;
-    id<MTLBuffer> dst=(id<MTLBuffer>)output_buffer;
     id<MTLTexture> base=nil,glow=nil,depth=nil,depth_tmp=nil;
     int32_t rc=0;
 
     do {
-        const int work_w=state->work_rect.right-state->work_rect.left;
-        const int work_h=state->work_rect.bottom-state->work_rect.top;
-        if(work_w<=0||work_h<=0){ rc=-1; break; }
-        const int sp=irb/(int32_t)sizeof(float)/4;
-        const int dp=orb/(int32_t)sizeof(float)/4;
+        const int work_w=layout.work_width;
+        const int work_h=layout.work_height;
+        const int sp=layout.input.pitch_pixels;
+        const int dp=layout.output.pitch_pixels;
         stellar::Params p=stellar::sanitized_params(sgbridge::to_cpp_params(state->params));
         const auto plan=stellar::make_render_plan(p,work_w,work_h,stellar::Backend::GPU);
         const auto gp=sgbridge::pack_gpu(*state,work_w,work_h,ow,oh,iw,ih,sp,dp,plan);

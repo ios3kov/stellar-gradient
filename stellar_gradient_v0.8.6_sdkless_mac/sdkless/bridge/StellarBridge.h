@@ -90,7 +90,11 @@ int32_t sg_cpu_render(const SGRenderStateC* state,
                       void* output_data, int32_t output_width, int32_t output_height, int32_t output_rowbytes,
                       int32_t bitdepth);
 
-/* Metal is implemented without Adobe headers; AE supplies native MTLDevice/MTLCommandQueue/MTLBuffer pointers. */
+/* Metal is implemented without Adobe headers; AE supplies native MTLDevice/MTLCommandQueue/MTLBuffer pointers.
+ * BGRA128 buffers require positive rowbytes divisible by 16 and >= width*16.
+ * Both MTLBuffer lengths must cover the last logical pixel; final padding is optional.
+ * Unsupported/invalid layouts return -1 before allocating/encoding GPU work.
+ * This requirement is specific to our float4 kernels, not general AE CPU alignment. */
 void* sg_metal_create(void* mtl_device, int32_t* supports_f32_filtering);
 void sg_metal_destroy(void* context);
 int32_t sg_metal_render(void* context,

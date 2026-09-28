@@ -62,3 +62,9 @@ add_test(NAME stellar_palette_geometry COMMAND stellar_palette_geometry)
 add_executable(stellar_grain_contract tests/grain_contract.cpp)
 target_link_libraries(stellar_grain_contract PRIVATE stellar_core)
 add_test(NAME stellar_grain_contract COMMAND stellar_grain_contract)
+
+# Header-level Metal buffer/geometry checks run on every platform and sanitizer.
+add_executable(stellar_metal_validation tests/metal_validation.cpp)
+target_link_libraries(stellar_metal_validation PRIVATE stellar_core)
+target_compile_options(stellar_metal_validation PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+add_test(NAME stellar_metal_validation COMMAND stellar_metal_validation)

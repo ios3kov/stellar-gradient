@@ -131,6 +131,29 @@ jobs:
             ".ci-native/${test}" | tee ".ci-native/${test}.log"
           done
           "${CXX[@]}" -c sdkless/bridge/MetalBridge.mm -o .ci-native/MetalBridge.o
+      - name: Metal entry validation and baseline reproducer (not GPU execution)
+        working-directory: ${{ env.SRC }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMON=(sdkless/bridge/metal_validation_host_test.mm sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp)
+          FLAGS=(-std=c++17 -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off -I sdkless/bridge -framework Foundation -framework Metal -framework MetalPerformanceShaders)
+          xcrun clang++ "${FLAGS[@]}" -O2 "${COMMON[@]}" sdkless/bridge/MetalBridge.mm -o .ci-native/metal-validation
+          .ci-native/metal-validation | tee .ci-native/metal-validation.log
+          .ci-native/metal-validation --rowbytes-reproducer | tee .ci-native/metal-reproducer-fixed.log
+          xcrun clang++ "${FLAGS[@]}" -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer "${COMMON[@]}" sdkless/bridge/MetalBridge.mm -o .ci-native/metal-validation-asan
+          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 .ci-native/metal-validation-asan | tee .ci-native/metal-validation-asan.log
+          # Pinned last native baseline; read-only fetch, never switches branches.
+          git fetch --no-tags --depth=1 origin d7e035ddf8751deb1c43c54d1cff050036890d64
+          git show d7e035ddf8751deb1c43c54d1cff050036890d64:"$SRC/sdkless/bridge/MetalBridge.mm" > .ci-native/MetalBridge.baseline.mm
+          xcrun clang++ "${FLAGS[@]}" -O2 "${COMMON[@]}" .ci-native/MetalBridge.baseline.mm -o .ci-native/metal-validation-baseline
+          set +e
+          .ci-native/metal-validation-baseline --rowbytes-reproducer > .ci-native/metal-reproducer-baseline.log 2>&1
+          rc=$?
+          set -e
+          cat .ci-native/metal-reproducer-baseline.log
+          test "$rc" -eq 1
+          grep -F 'result=-3 commands=1; expected=-1 commands=0' .ci-native/metal-reproducer-baseline.log
       - name: Compile actual runtime Metal shader (not GPU execution)
         shell: bash
         run: |

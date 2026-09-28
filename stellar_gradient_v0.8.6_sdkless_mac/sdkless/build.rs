@@ -88,6 +88,7 @@ fn main() {
         "bridge/StellarBridge.h",
         "bridge/StellarBridge.cpp",
         "bridge/MetalBridge.mm",
+        "bridge/MetalValidation.hpp",
         "../src/core/Params.h",
         "../src/core/Sanitize.h",
         "../src/core/RenderPlan.h",
