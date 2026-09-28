@@ -65,6 +65,7 @@ constexpr A_long kAEEffectKind = FourCC('e', 'F', 'K', 'T');
 constexpr A_long kApiMajor = 13;
 constexpr A_long kApiMinor = 29;
 constexpr A_long kRegistrationReservedInfo = 8;
+constexpr std::uint32_t kShellAbi = 1;
 constexpr std::uint32_t kImplementationAbi = 1;
 constexpr std::uint64_t kImplementationStateAbi = 2;
 constexpr const char* kImplementationKey = "stellar-gradient";
@@ -467,7 +468,40 @@ int LoadImplementationFromSourceLocked(
 
 int LoadImplementation(bool force, std::string* detail) {
     std::lock_guard<std::mutex> lock(g_reload_mutex);
-    return LoadImplementationFromSourceLocked(SelectSource(), force, detail);
+
+    bool initialized_baseline = false;
+    std::string baseline_detail;
+
+    // A Reload click may happen before AE has ever called EffectMain for this
+    // shell. Establish the process/runtime ABI from the bundled implementation
+    // first so an arbitrary stale current.dylib can never define compatibility.
+    if (g_effect_main.load(std::memory_order_acquire) == nullptr) {
+        const int baseline_result = LoadImplementationFromSourceLocked(
+            DefaultImplementationPath(),
+            true,
+            &baseline_detail);
+        if (baseline_result < 0) {
+            if (detail) {
+                *detail = "Bundled implementation baseline failed: " + baseline_detail;
+            }
+            return baseline_result;
+        }
+        initialized_baseline = baseline_result == 0;
+    }
+
+    const std::string source = SelectSource();
+    if (source == DefaultImplementationPath()) {
+        if (initialized_baseline) {
+            if (detail) *detail = baseline_detail;
+            return 0;
+        }
+        if (detail) {
+            *detail = "Bundled implementation active; no external candidate staged.";
+        }
+        return 1;
+    }
+
+    return LoadImplementationFromSourceLocked(source, force, detail);
 }
 
 int EnsureImplementationLoaded(std::string* detail) {
@@ -643,7 +677,7 @@ int AEHotLoader_ShellReload(char* output, std::size_t output_capacity) {
 
 extern "C" __attribute__((visibility("default")))
 std::uint32_t AEHotLoader_ShellABI() {
-    return 1;
+    return kShellAbi;
 }
 
 extern "C" __attribute__((visibility("default")))
