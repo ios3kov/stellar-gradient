@@ -82,7 +82,7 @@ jobs:
           codesign --verify --deep --strict "$BUNDLE"
 
           nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2|AEHotLoader_ShellReload'
-          nm -gU "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep -E 'EffectMain|AEHotLoader_ImplementationABI|AEHotLoader_ImplementationStateABI|AEHotLoader_ImplementationKey|AEHotLoader_ImplementationLabel'
+          nm -gU "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep -E 'EffectMain|AEHotLoader_ImplementationABI|AEHotLoader_ImplementationStateABI|AEHotLoader_ImplementationKey|AEHotLoader_ImplementationLabel|AEHotLoader_ImplementationRuntimeABI'
           strings "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" | grep 'stellar-default'
           strings "$CANDIDATE_ROOT/libstellar_gradient_host.dylib" | grep 'stellar-candidate-v2'
           for impl in "$BUNDLE/Contents/Frameworks/libstellar_gradient_impl.dylib" "$CANDIDATE_ROOT/libstellar_gradient_host.dylib"; do
