@@ -80,7 +80,7 @@ fi
 
 BACKUP_ROOT="$HOME/Library/Application Support/AE Hot Loader/backups/stellar-gradient"
 mkdir -p "$BACKUP_ROOT"
-BACKUP="$BACKUP_ROOT/StellarGradient-$(date +%Y%m%dT%H%M%S)-$.plugin"
+BACKUP="$BACKUP_ROOT/StellarGradient-$(date +%Y%m%dT%H%M%S)-$$.plugin"
 USE_SUDO=0
 [[ "$TARGET" == /Library/* ]] && USE_SUDO=1
 BACKUP_MADE=0
