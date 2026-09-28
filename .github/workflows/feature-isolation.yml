@@ -1,0 +1,55 @@
+name: Feature isolation diagnostic
+on:
+  push:
+    branches: [fix/stellar-release-gate]
+    paths:
+      - diagnostics/build_isolation.py
+      - diagnostics/test_isolation.cjs
+      - diagnostics/Stellar_Cosmic_Compare.jsx
+      - diagnostics/test_runner_v1_1.cjs
+      - .github/workflows/feature-isolation.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - diagnostics/build_isolation.py
+      - diagnostics/test_isolation.cjs
+      - diagnostics/Stellar_Cosmic_Compare.jsx
+      - diagnostics/test_runner_v1_1.cjs
+      - .github/workflows/feature-isolation.yml
+permissions:
+  contents: read
+concurrency:
+  group: feature-isolation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate and test exact diagnostic (not real AE)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          python3 diagnostics/build_isolation.py
+          node diagnostics/test_isolation.cjs
+          cp dist/diagnostics/Stellar_Feature_Isolation.jsx "$RUNNER_TEMP/first.jsx"
+          python3 diagnostics/build_isolation.py
+          cmp "$RUNNER_TEMP/first.jsx" dist/diagnostics/Stellar_Feature_Isolation.jsx
+          echo '4dc8af03c55909b9f296f5c099b6281b697850439f1d8d36cfdfa52b406f23ef  dist/diagnostics/Stellar_Feature_Isolation.jsx' | sha256sum --check
+          python3 - <<'PY'
+          import json, os
+          r = json.load(open('dist/diagnostics/build.json'))
+          assert r['source_state'] == 'clean'
+          assert r['git_commit'] == os.environ['GITHUB_SHA']
+          PY
+          test -z "$(git status --porcelain)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Stellar-Feature-Isolation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/diagnostics/
+          if-no-files-found: error
