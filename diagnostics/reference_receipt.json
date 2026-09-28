@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "received_date": "2026-09-28",
+  "reference_file": "Cosmic.aex",
+  "size": 940032,
+  "sha256": "b1b55fc6f0795dad45dfd1e79bfd180eb6d881519aade4250bd6416d737a3ea8",
+  "format": "PE32+ DLL",
+  "platform": "Windows x86-64",
+  "machine_hex": "0x8664",
+  "sections": 8,
+  "matches_previously_documented_reference": true,
+  "candidate_commit": "deec78835801c5bf6f1aa44c772b508e43697b11",
+  "scope": "Static reference identity only. Does not establish render, palette callback or complete control parity. No license bypass or original executable/shader redistribution.",
+  "macos_reference_render": "BLOCKED: Windows DLL cannot be loaded natively into macOS AE; a licensed macOS Cosmic installation or controlled original render fixtures are needed."
+}

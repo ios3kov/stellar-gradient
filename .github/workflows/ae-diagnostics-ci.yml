@@ -1,0 +1,24 @@
+name: AE diagnostic harness
+on:
+  push:
+    branches: [fix/stellar-release-gate]
+    paths: [diagnostics/**, .github/workflows/ae-diagnostics-ci.yml]
+  pull_request:
+    branches: [main]
+    paths: [diagnostics/**, .github/workflows/ae-diagnostics-ci.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ae-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Negative and positive safety checks (not real AE)
+        run: node diagnostics/test_runner.cjs
