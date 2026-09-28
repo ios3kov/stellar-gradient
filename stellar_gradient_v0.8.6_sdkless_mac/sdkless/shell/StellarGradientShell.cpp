@@ -68,7 +68,7 @@ constexpr A_long kApiMinor = 29;
 constexpr A_long kRegistrationReservedInfo = 8;
 constexpr std::uint32_t kShellAbi = 1;
 constexpr std::uint32_t kImplementationAbi = 2;
-constexpr std::uint64_t kImplementationStateAbi = 3;
+constexpr std::uint64_t kImplementationStateAbi = 4;
 constexpr const char* kImplementationKey = "stellar-gradient";
 constexpr std::size_t kMaxImplementationGenerations = 64;
 
