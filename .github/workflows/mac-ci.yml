@@ -148,7 +148,8 @@ jobs:
         with:
           name: StellarGradient-native-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.SRC }}/.ci-native/*.log
-          if-no-files-found: warn
+          include-hidden-files: true
+          if-no-files-found: error
 
   rust-quality:
     name: Rust host quality
