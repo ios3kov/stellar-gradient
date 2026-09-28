@@ -20,6 +20,14 @@ export RUSTFLAGS="--cfg threaded_rendering --cfg smart_render --cfg gpu_render -
 export MACOSX_DEPLOYMENT_TARGET="11.0"
 export AE_HOT_LOADER_IMPL_LABEL="$LABEL"
 
+echo "Verifying Stellar Gradient host/state contract..."
+python3 "$ROOT/sdkless/tools/verify_shell_metadata.py" \
+  "$ROOT/sdkless/build.rs" \
+  "$ROOT/sdkless/shell/StellarGradientShell.cpp"
+python3 "$ROOT/sdkless/tools/verify_hot_reload_state.py" \
+  "$ROOT/sdkless/src/lib.rs" \
+  "$ROOT/sdkless/shell/StellarGradientShell.cpp"
+
 if command -v rustup >/dev/null 2>&1; then
   rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal >/dev/null
 else
