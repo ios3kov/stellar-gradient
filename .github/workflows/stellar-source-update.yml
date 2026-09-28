@@ -1,0 +1,37 @@
+name: Apply reviewed Stellar identity update
+on:
+  push:
+    branches: [fix/stellar-release-gate]
+    paths: [.github/workflows/stellar-source-update.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'ios3kov/stellar-gradient' && github.ref == 'refs/heads/fix/stellar-release-gate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Apply exact reviewed patch and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 89bdf2b85eb10f970ab72252152516e3d4e47b10
+          echo '45224a7215b2373cde0323600e4b2e60880ec032dfd651715429f281ac036f57  .ci/stellar-source-update.patch' | sha256sum --check
+          git apply --check .ci/stellar-source-update.patch
+          git apply .ci/stellar-source-update.patch
+          cd stellar_gradient_v0.8.6_sdkless_mac
+          python3 tools/test_build_identity.py
+          python3 tools/verify_code_freeze.py
+          python3 tools/verify_sdkless_host.py
+          python3 tools/verify_v08_host_freeze.py
+          cd ..
+          test "$(git diff --name-only | wc -l)" -eq 7
+          git add -- .gitignore README.md stellar_gradient_v0.8.6_sdkless_mac/sdkless/Cargo.toml stellar_gradient_v0.8.6_sdkless_mac/sdkless/Cargo.lock stellar_gradient_v0.8.6_sdkless_mac/sdkless/build.rs stellar_gradient_v0.8.6_sdkless_mac/sdkless/src/lib.rs stellar_gradient_v0.8.6_sdkless_mac/tools/build_identity.py stellar_gradient_v0.8.6_sdkless_mac/tools/package_identity.py stellar_gradient_v0.8.6_sdkless_mac/tools/test_build_identity.py stellar_gradient_v0.8.6_sdkless_mac/docs/BUILD_IDENTITY.md stellar_gradient_v0.8.6_sdkless_mac/docs/FINISH_GATE.md stellar_gradient_v0.8.6_sdkless_mac/docs/SOURCE_FREEZE_V08_SHA256.txt
+          test "$(git diff --cached --name-only | wc -l)" -eq 12
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: synchronize Stellar v0.9.6 runtime and package identity'
+          git push origin HEAD:refs/heads/fix/stellar-release-gate

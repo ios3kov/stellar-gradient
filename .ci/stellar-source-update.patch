@@ -1,0 +1,586 @@
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,13 @@
++# Reproducible build outputs; source and dependency locks remain tracked.
++/target/
++/dist/
++/evidence/
++**/__pycache__/
++**/sdkless/target/
++/stellar_gradient_v0.8.6_sdkless_mac/build*/
++/stellar_gradient_v0.8.6_sdkless_mac/.ci-native/
++/stellar_gradient_v0.8.6_sdkless_mac/.sdkless-ci/
++/stellar_gradient_v0.8.6_sdkless_mac/.sdkless-build/
++/stellar_gradient_v0.8.6_sdkless_mac/.sdkless-target/
++/stellar_gradient_v0.8.6_sdkless_mac/.mac-preflight/
++/stellar_gradient_v0.8.6_sdkless_mac/dist/
+--- a/README.md
++++ b/README.md
+@@ -1,45 +1,19 @@
+-# Stellar Gradient — clean-room AE effect
++# Stellar Gradient — After Effects native effect
+ 
+-Independent After Effects effect in the same broad category as Cosmic. It does not contain Cosmic source code, shaders, assets or licensing code.
++## Current development candidate: v0.9.6 (not a release)
+ 
+-## Current status — v0.8.6 SDK-less Mac candidate
++The active standalone effect lives in `stellar_gradient_v0.8.6_sdkless_mac/`; the directory name is historical. Work on completion is isolated in `fix/stellar-release-gate`. The separate Hot Loader experiments are not part of this candidate.
+ 
+-The render core remains the audited/frozen **v0.6 core**. The After Effects host, C ABI bridge and Metal bridge are now **v0.8.6 build 14** and no longer require the Adobe After Effects SDK.
++The render algorithms and saved parameter IDs are unchanged by v0.9.6. Package version, PiPL version and About now come from Cargo's package version. About includes the generated Build ID; the signed package includes commit, source state, source hashes and toolchain metadata. CI requires clean canonical source, a committed dependency lock and passing code-side checks before packaging.
+ 
+-Completed before the real Mac host run:
++**Code compilation is not release approval.** Actual After Effects initialization, original-preset/output parity, GPU execution parity, lifecycle/migration and host profiling are still mandatory. See [completion gate](stellar_gradient_v0.8.6_sdkless_mac/docs/FINISH_GATE.md) and [build identity](stellar_gradient_v0.8.6_sdkless_mac/docs/BUILD_IDENTITY.md).
+ 
+-- CPU FP32 quality reference locked;
+-- strict / ASan+UBSan / TSan core regression: 7/7 PASS;
+-- SDK-less C++ bridge parity: `max_err = 0`;
+-- bridge 8/16/32-bpc + HDR checks: PASS;
+-- bridge concurrent MFR test: `max_err = 0`;
+-- release panic boundary hardened;
+-- Rust/C ABI layout frozen and tested;
+-- persistent AE parameter IDs pinned 1..49;
+-- Metal fast-math disabled for quality paths;
+-- v0.8 source/build inputs SHA-256 frozen.
++## Build / validation
+ 
+-## Controls
++GitHub `Mac CI` validates core strict/sanitizer tests, native bridge, Rust host and clean ARM64 packaging. Its artifact is an internal candidate until the AE gate is complete. It contains the final ZIP SHA-256, commit and signed-payload manifest.
+ 
+-- 5-color looping palette + presets
+-- Angle / Cycles / Offset / Phase
+-- Saturation / Brightness
+-- Depth: Contrast / Bulge / Rounding
+-- Turbulence
+-- Glow: Radius / Falloff / Threshold / Intensity / Soft Clip
+-- Grain: Amount / Size / Color / Animate
+-- Optical Diffusion: Blur / Center / Focus / Feather / Invert
+-- Render Engine: Auto / GPU / CPU
+-- Quality: Preview / Auto / Final
++Requirements: Git, Python 3, modern Rust with edition 2024 support, and Apple Xcode command-line tools for macOS builds. Dependencies are locked in `sdkless/Cargo.lock`; release Cargo commands must use `--locked`.
+ 
+-## CI
++The legacy `FIRST_MAC_BUILD.command` includes installation and environment changes and is **not the approved release path**. It has not passed the new clean-install safety gate. Do not use it as an automatic user-test handoff.
+ 
+-GitHub Actions builds and tests the SDK-less macOS plug-in without the Adobe SDK. Successful runs upload `StellarGradient.plugin` as an artifact.
+-
+-## Mac build — no Adobe SDK
+-
+-Double-click:
+-
+-`FIRST_MAC_BUILD.command`
+-
+-See `docs/STATUS.md`, `docs/MAC_GATE_STATUS.md`, `docs/REGRESSION_V08.md`, and `docs/MAC_TEST.md`.
++Historical reports in STATUS.md remain historical and do not certify this candidate. No full Cosmic equivalence, production performance advantage, Windows compatibility or Intel runtime compatibility is claimed.
+--- a/stellar_gradient_v0.8.6_sdkless_mac/sdkless/Cargo.toml
++++ b/stellar_gradient_v0.8.6_sdkless_mac/sdkless/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "stellar_gradient_host"
+-version = "0.8.8"
++version = "0.9.6"
+ edition = "2024"
+ license = "MIT OR Apache-2.0"
+ build = "build.rs"
+--- a/stellar_gradient_v0.8.6_sdkless_mac/sdkless/Cargo.lock
++++ b/stellar_gradient_v0.8.6_sdkless_mac/sdkless/Cargo.lock
+@@ -630,7 +630,7 @@
+ 
+ [[package]]
+ name = "stellar_gradient_host"
+-version = "0.8.8"
++version = "0.9.6"
+ dependencies = [
+  "after-effects",
+  "cc",
+--- a/stellar_gradient_v0.8.6_sdkless_mac/sdkless/build.rs
++++ b/stellar_gradient_v0.8.6_sdkless_mac/sdkless/build.rs
+@@ -1,6 +1,7 @@
+ use pipl::*;
+ use std::env;
+ use std::path::PathBuf;
++use std::process::Command;
+ 
+ const PF_PLUG_IN_VERSION: u16 = 13;
+ const PF_PLUG_IN_SUBVERS: u16 = 29;
+@@ -34,6 +35,30 @@
+ 
+     let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+     let project = root.parent().expect("sdkless must live in project root");
++
++    // OUT_DIR is generated build data; canonical source files stay unchanged.
++    // The existing Mac build toolchain already requires Python 3.
++    let version = env::var("CARGO_PKG_VERSION").expect("Cargo package version");
++    let target = env::var("TARGET").expect("Cargo target");
++    let out_dir = env::var("OUT_DIR").expect("Cargo output directory");
++    let identity = Command::new("python3")
++        .arg(project.join("tools/build_identity.py"))
++        .arg("--crate").arg(&root)
++        .arg("--version").arg(&version)
++        .arg("--target").arg(&target)
++        .arg("--out").arg(&out_dir)
++        .output().expect("Python 3 is required for build identity");
++    assert!(identity.status.success(), "{}", String::from_utf8_lossy(&identity.stderr));
++    print!("{}", String::from_utf8(identity.stdout).expect("UTF-8 build identity"));
++    for key in ["SG_REQUIRE_CLEAN_BUILD", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"] {
++        println!("cargo:rerun-if-env-changed={key}");
++    }
++    // A deliberately nonexistent path forces provenance to be re-evaluated on
++    // incremental builds too: a changed Git HEAD must never retain an old ID.
++    println!("cargo:rerun-if-changed={}/stellar-identity-always-check", out_dir);
++    println!("cargo:rerun-if-changed=../tools/build_identity.py");
++    println!("cargo:rerun-if-changed=Cargo.lock");
++
+ 
+     let mut native = cc::Build::new();
+     native.cpp(true)
+@@ -87,7 +112,12 @@
+         Property::CodeMacARM64("EffectMain"),
+         Property::AE_PiPL_Version { major: 2, minor: 0 },
+         Property::AE_Effect_Spec_Version { major: PF_PLUG_IN_VERSION, minor: PF_PLUG_IN_SUBVERS },
+-        Property::AE_Effect_Version { version: 0, subversion: 8, bugversion: 8, stage: Stage::Beta, build: 16 },
++        Property::AE_Effect_Version {
++            version: env::var("CARGO_PKG_VERSION_MAJOR").unwrap().parse().unwrap(),
++            subversion: env::var("CARGO_PKG_VERSION_MINOR").unwrap().parse().unwrap(),
++            bugversion: env::var("CARGO_PKG_VERSION_PATCH").unwrap().parse().unwrap(),
++            stage: Stage::Beta, build: 1,
++        },
+         Property::AE_Effect_Info_Flags(0),
+         Property::AE_Effect_Global_OutFlags(
+             OutFlags::DeepColorAware | OutFlags::NonParamVary
+--- a/stellar_gradient_v0.8.6_sdkless_mac/sdkless/src/lib.rs
++++ b/stellar_gradient_v0.8.6_sdkless_mac/sdkless/src/lib.rs
+@@ -276,7 +276,7 @@
+ 
+     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
+         match cmd {
+-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.5\rAE init-safe params + exact Cosmic Depth + Metal"),
++            ae::Command::About => out_data.set_return_msg(concat!("Stellar Gradient v", env!("CARGO_PKG_VERSION"), "\rBuild ", env!("SG_BUILD_ID"))),
+             ae::Command::UserChangedParam { param_index } => {
+                 match params.type_at(param_index) {
+                     Params::Presets => {
+@@ -401,6 +401,31 @@
+     use super::*;
+ 
+     #[test]
++    fn palette_choices_and_custom_are_well_defined() {
++        let mut all = Vec::new();
++        for which in 1..=11 {
++            let palette = palette_colors(which).expect("built-in palette");
++            assert!(!all.contains(&palette), "duplicate built-in palette");
++            all.push(palette);
++        }
++        for which in [-1, 0, 12, 13, 14, i32::MAX] {
++            assert!(palette_colors(which).is_none());
++        }
++        assert_eq!(palette_colors(5).unwrap(), [
++            [40, 13, 140], [55, 17, 191], [24, 14, 89], [7, 12, 38], [242, 75, 75],
++        ]);
++    }
++
++    #[test]
++    fn compiled_build_identity_is_explicit_and_fits_about() {
++        let id = env!("SG_BUILD_ID");
++        assert!(id.starts_with(&format!("sg-{}-", env!("CARGO_PKG_VERSION"))));
++        assert!(id.contains(env!("SG_BUILD_TARGET")));
++        assert!(matches!(env!("SG_SOURCE_STATE"), "clean" | "dirty" | "derived" | "unknown"));
++        assert!(id.len() + env!("CARGO_PKG_VERSION").len() + 30 < 256);
++    }
++
++    #[test]
+     fn ffi_layout_matches_cpp_contract() {
+         assert_eq!(std::mem::size_of::<Color3>(), 12);
+         assert_eq!(std::mem::size_of::<Point2>(), 8);
+--- /dev/null
++++ b/stellar_gradient_v0.8.6_sdkless_mac/tools/build_identity.py
+@@ -0,0 +1,91 @@
++#!/usr/bin/env python3
++"""Generate native-host provenance into Cargo OUT_DIR; never edit source files."""
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import subprocess
++import sys
++
++
++def command(cwd, *args):
++    try:
++        result = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True,
++                                timeout=15, check=False)
++    except (OSError, subprocess.TimeoutExpired):
++        return None
++    return result.stdout.strip() if result.returncode == 0 else None
++
++
++def collect(crate, version, target, run_id="local", require_clean=False):
++    crate = Path(crate).resolve()
++    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
++        raise ValueError("a numeric three-component package version is required")
++    for name, value in (("target", target), ("run ID", run_id)):
++        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", value):
++            raise ValueError("invalid " + name)
++    project = crate.parent
++    commit = command(crate, "git", "rev-parse", "HEAD")
++    status = command(crate, "git", "status", "--porcelain", "--untracked-files=normal")
++    if commit is None or not re.fullmatch(r"[0-9a-f]{40}", commit) or status is None:
++        commit, state = "unknown", "unknown"
++    else:
++        state = "dirty" if status else "clean"
++    # A reformatted copy is not the canonical tracked crate, even when ignored.
++    tracked = command(crate, "git", "ls-files", "--error-unmatch", "Cargo.toml")
++    if tracked != "Cargo.toml" and state == "clean":
++        state = "derived"
++    if require_clean and state != "clean":
++        raise ValueError("release requires canonical clean Git source, got " + state)
++    if not (crate / "Cargo.lock").is_file():
++        raise ValueError("Cargo.lock is required; do not resolve release dependencies implicitly")
++    inputs = {}
++    for base, label in ((crate / "src", "sdkless/src"),
++                        (crate / "bridge", "sdkless/bridge"),
++                        (project / "src", "src")):
++        for path in sorted(base.rglob("*")):
++            if path.is_file():
++                inputs[label + "/" + path.relative_to(base).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
++    for path, label in ((crate / "Cargo.toml", "sdkless/Cargo.toml"),
++                        (crate / "Cargo.lock", "sdkless/Cargo.lock"),
++                        (crate / "build.rs", "sdkless/build.rs"),
++                        (Path(__file__), "tools/build_identity.py")):
++        inputs[label] = hashlib.sha256(path.read_bytes()).hexdigest()
++    digest = hashlib.sha256(json.dumps(inputs, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
++    build_id = "sg-{}-{}-{}-{}-{}-{}".format(version, commit[:12], state, digest[:12], target, run_id)
++    return {"schema": 1, "version": version, "git_commit": commit,
++            "source_state": state, "source_sha256": digest, "target": target,
++            "build_id": build_id, "test_run_id": run_id,
++            "rustc": command(crate, "rustc", "--version") or "unavailable",
++            "cargo": command(crate, "cargo", "--version") or "unavailable",
++            "macos_sdk": command(crate, "xcrun", "--show-sdk-version") or "unavailable",
++            "source_files": inputs}
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--crate", type=Path, required=True)
++    parser.add_argument("--version", required=True)
++    parser.add_argument("--target", required=True)
++    parser.add_argument("--out", type=Path, required=True)
++    args = parser.parse_args()
++    run_id = os.environ.get("GITHUB_RUN_ID", "local") + "." + os.environ.get("GITHUB_RUN_ATTEMPT", "1")
++    identity = collect(args.crate, args.version, args.target, run_id,
++                       os.environ.get("SG_REQUIRE_CLEAN_BUILD") == "1")
++    args.out.mkdir(parents=True, exist_ok=True)
++    tmp = args.out / "stellar-build.json.tmp"
++    tmp.write_text(json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8")
++    tmp.replace(args.out / "stellar-build.json")
++    for key, field in (("SG_BUILD_ID", "build_id"), ("SG_BUILD_COMMIT", "git_commit"),
++                       ("SG_SOURCE_STATE", "source_state"), ("SG_BUILD_TARGET", "target")):
++        print("cargo:rustc-env=" + key + "=" + identity[field])
++
++
++if __name__ == "__main__":
++    try:
++        main()
++    except (ValueError, OSError) as exc:
++        print("Build identity failed: " + str(exc), file=sys.stderr)
++        sys.exit(1)
+--- /dev/null
++++ b/stellar_gradient_v0.8.6_sdkless_mac/tools/package_identity.py
+@@ -0,0 +1,88 @@
++#!/usr/bin/env python3
++"""Stamp an unsigned bundle or verify a signed one without modifying its bytes."""
++import argparse
++import hashlib
++import json
++from pathlib import Path
++import plistlib
++import shutil
++import sys
++
++
++def validate(bundle, expected_commit=None):
++    bundle = Path(bundle)
++    identity = json.loads((bundle / "Contents/Resources/stellar-build.json").read_text())
++    if identity.get("schema") != 1 or identity.get("source_state") != "clean":
++        raise ValueError("bundle does not have canonical clean source identity")
++    if expected_commit is not None and identity["git_commit"] != expected_commit:
++        raise ValueError("bundle commit does not match candidate commit")
++    binary = (bundle / "Contents/MacOS/StellarGradient").read_bytes()
++    if identity["build_id"].encode() not in binary:
++        raise ValueError("runtime Build ID not found in the packaged binary")
++    plist = plistlib.loads((bundle / "Contents/Info.plist").read_bytes())
++    for key in ("CFBundleShortVersionString", "CFBundleVersion"):
++        if plist.get(key) != identity["version"]:
++            raise ValueError(key + " disagrees with compiled package version")
++    if plist.get("StellarBuildID") != identity["build_id"]:
++        raise ValueError("Info.plist Build ID disagrees with compiled identity")
++    return identity
++
++
++def stamp(bundle, identity_path):
++    bundle = Path(bundle)
++    identity_path = Path(identity_path)
++    if (bundle / "Contents/_CodeSignature").exists():
++        raise ValueError("refusing to modify a signed bundle; stamp before codesign")
++    identity = json.loads(identity_path.read_text())
++    if identity.get("source_state") != "clean":
++        raise ValueError("do not package a dirty, derived or unidentified build")
++    resources = bundle / "Contents/Resources"
++    resources.mkdir(parents=True, exist_ok=True)
++    shutil.copyfile(identity_path, resources / "stellar-build.json")
++    plist_path = bundle / "Contents/Info.plist"
++    plist = plistlib.loads(plist_path.read_bytes())
++    plist.update(CFBundleVersion=identity["version"], CFBundleShortVersionString=identity["version"],
++                 StellarBuildID=identity["build_id"], StellarGitCommit=identity["git_commit"])
++    plist_path.write_bytes(plistlib.dumps(plist))
++    return validate(bundle, identity["git_commit"])
++
++
++def write_manifest(bundle, destination, expected_commit):
++    bundle = Path(bundle)
++    identity = validate(bundle, expected_commit)
++    files = {}
++    for path in sorted(bundle.rglob("*")):
++        if path.is_symlink():
++            raise ValueError("unexpected symlink in plugin payload")
++        if path.is_file():
++            files[path.relative_to(bundle).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
++    manifest = {"identity": identity, "payload_sha256": files,
++                "release_status": "NOT_APPROVED_AE_GATES_PENDING"}
++    Path(destination).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
++    return manifest
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("bundle", type=Path)
++    parser.add_argument("--stamp", type=Path)
++    parser.add_argument("--manifest", type=Path)
++    parser.add_argument("--commit")
++    args = parser.parse_args()
++    if args.stamp:
++        stamp(args.bundle, args.stamp)
++    if args.manifest:
++        write_manifest(args.bundle, args.manifest, args.commit)
++    else:
++        validate(args.bundle, args.commit)
++    print("PASS: bundle version, runtime identity and payload association")
++
++
++if __name__ == "__main__":
++    try:
++        main()
++    except (OSError, ValueError, KeyError) as exc:
++        print("Package identity failed: " + str(exc), file=sys.stderr)
++        sys.exit(1)
+--- /dev/null
++++ b/stellar_gradient_v0.8.6_sdkless_mac/tools/test_build_identity.py
+@@ -0,0 +1,123 @@
++#!/usr/bin/env python3
++"""Isolated tests for clean-source and immutable-bundle release safeguards."""
++import json
++from pathlib import Path
++import plistlib
++import shutil
++import subprocess
++import tempfile
++import unittest
++
++from build_identity import collect
++from package_identity import stamp, validate, write_manifest
++
++
++class IdentityTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory(prefix="stellar-identity-")
++        self.addCleanup(self.tmp.cleanup)
++        self.root = Path(self.tmp.name)
++        self.crate = self.root / "project/sdkless"
++        self.crate.mkdir(parents=True)
++        for name in ("Cargo.toml", "Cargo.lock", "build.rs"):
++            (self.crate / name).write_text("fixture\n")
++        self.git("init", "-q")
++        self.git("config", "user.email", "fixture@example.invalid")
++        self.git("config", "user.name", "Identity test")
++        self.git("add", ".")
++        self.git("commit", "-qm", "fixture")
++
++    def git(self, *args):
++        return subprocess.check_output(["git", "-C", str(self.root)] + list(args), text=True).strip()
++
++    def identity(self, **kwargs):
++        return collect(self.crate, "0.9.6", "aarch64-apple-darwin", **kwargs)
++
++    def bundle(self):
++        record = self.identity(require_clean=True)
++        bundle = self.root / "StellarGradient.plugin"
++        (bundle / "Contents/MacOS").mkdir(parents=True)
++        (bundle / "Contents/MacOS/StellarGradient").write_bytes(record["build_id"].encode())
++        (bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({}))
++        source = self.root / "identity.json"
++        source.write_text(json.dumps(record))
++        stamp(bundle, source)
++        return bundle, record, source
++
++    def test_clean_commit_and_repeatable_identity(self):
++        a = self.identity(require_clean=True)
++        self.assertEqual(a["git_commit"], self.git("rev-parse", "HEAD"))
++        self.assertEqual(a["source_state"], "clean")
++        self.assertEqual(a["build_id"], self.identity(require_clean=True)["build_id"])
++
++    def test_dirty_source_is_rejected(self):
++        old = self.identity()
++        (self.crate / "build.rs").write_text("changed\n")
++        self.assertEqual(self.identity()["source_state"], "dirty")
++        self.assertNotEqual(old["source_sha256"], self.identity()["source_sha256"])
++        with self.assertRaisesRegex(ValueError, "clean Git"):
++            self.identity(require_clean=True)
++
++    def test_untracked_source_is_not_clean(self):
++        (self.crate / "unexpected.rs").write_text("unexpected")
++        with self.assertRaises(ValueError):
++            self.identity(require_clean=True)
++
++    def test_archive_has_no_verified_commit(self):
++        shutil.rmtree(self.root / ".git")
++        self.assertEqual(self.identity()["source_state"], "unknown")
++        with self.assertRaises(ValueError):
++            self.identity(require_clean=True)
++
++    def test_ignored_copy_is_derived_not_clean(self):
++        (self.root / ".gitignore").write_text("project/.sdkless-ci/\n")
++        self.git("add", ".gitignore")
++        self.git("commit", "-qm", "ignore test copy")
++        copy = self.crate.parent / ".sdkless-ci"
++        shutil.copytree(self.crate, copy)
++        self.assertEqual(collect(copy, "0.9.6", "aarch64-apple-darwin")["source_state"], "derived")
++        with self.assertRaises(ValueError):
++            collect(copy, "0.9.6", "aarch64-apple-darwin", require_clean=True)
++
++    def test_missing_lock_and_injected_values_are_rejected(self):
++        with self.assertRaises(ValueError):
++            self.identity(run_id="bad\ncargo:rustc-env=INJECT=1")
++        (self.crate / "Cargo.lock").unlink()
++        with self.assertRaisesRegex(ValueError, "Cargo.lock"):
++            self.identity()
++
++    def test_signed_payload_manifest_is_read_only(self):
++        bundle, record, _ = self.bundle()
++        signature = bundle / "Contents/_CodeSignature"
++        signature.mkdir()
++        (signature / "CodeResources").write_bytes(b"signature-fixture")
++        before = {str(p): p.read_bytes() for p in bundle.rglob("*") if p.is_file()}
++        manifest = write_manifest(bundle, self.root / "manifest.json", record["git_commit"])
++        self.assertIn("Contents/_CodeSignature/CodeResources", manifest["payload_sha256"])
++        self.assertEqual(before, {str(p): p.read_bytes() for p in bundle.rglob("*") if p.is_file()})
++
++    def test_wrong_commit_and_binary_are_rejected(self):
++        bundle, _, _ = self.bundle()
++        with self.assertRaises(ValueError):
++            validate(bundle, "0" * 40)
++        (bundle / "Contents/MacOS/StellarGradient").write_bytes(b"old binary")
++        with self.assertRaisesRegex(ValueError, "runtime Build ID"):
++            validate(bundle)
++
++    def test_version_mismatch_is_rejected(self):
++        bundle, _, _ = self.bundle()
++        path = bundle / "Contents/Info.plist"
++        plist = plistlib.loads(path.read_bytes())
++        plist["CFBundleVersion"] = "0.8.8"
++        path.write_bytes(plistlib.dumps(plist))
++        with self.assertRaisesRegex(ValueError, "version"):
++            validate(bundle)
++
++    def test_signed_bundle_cannot_be_restamped(self):
++        bundle, _, source = self.bundle()
++        (bundle / "Contents/_CodeSignature").mkdir()
++        with self.assertRaisesRegex(ValueError, "signed bundle"):
++            stamp(bundle, source)
++
++
++if __name__ == "__main__":
++    unittest.main(verbosity=2)
+--- /dev/null
++++ b/stellar_gradient_v0.8.6_sdkless_mac/docs/BUILD_IDENTITY.md
+@@ -0,0 +1,27 @@
++# v0.9.6 build identity and package safeguards
++
++2026-09-28. Scope: native host metadata and packaging, not render-algorithm changes.
++
++## Defect and acceptance
++
++Baseline v0.9.5 About reported 0.9.5 but Cargo and PiPL still identified 0.8.8. A version label could not identify the loaded source. New acceptance: one Cargo version feeds PiPL and About; compiled Build ID binds commit, actual source fingerprint, source state, target and CI run/attempt; package metadata matches that binary; dirty/unknown/derived builds cannot enter the CI package gate.
++
++`build.rs` invokes `tools/build_identity.py` using the existing Python 3 prerequisite. It writes generated JSON only under Cargo OUT_DIR and emits `cargo:rustc-env` values used by About. No source files are generated or rewritten. A forced identity check on every incremental build prevents an unchanged Rust file from retaining the previous Git commit identity; this intentionally favors correctness over avoiding a small pre-build check. Release builds remain clean/fresh.
++
++The source digest includes host source, C++/Metal inputs, dependency lock and identity generator. Toolchain versions are recorded, not assumed. The GitHub runner/Rust stable channel are not bitwise-reproducibility guarantees; pinning the full hosted toolchain remains a release limitation.
++
++`package_identity.py --stamp` is allowed only before codesign. It rejects derived/dirty/unknown source and verifies the compiled Build ID in the binary. After codesign, verification and SHA-256 manifest creation are read-only. The final ZIP hash is computed after signing and archiving. No file stores its own hash.
++
++## Tests fixed before candidate validation
++
++10 isolated Python tests: clean/deterministic source identity; tracked changes; untracked files; absent Git history; ignored/reformatted copy; absent lock and malformed metadata; read-only signed-payload manifest; wrong commit/binary; wrong version; refusal to restamp a signed bundle.
++
++Rust tests cover existing ABI, 11 distinct palettes, invalid/separator/Custom choices, default palette and compiled identity/About length. These tests do NOT establish original Cosmic palette values or host UI behavior.
++
++Local Python tests: PASS 10/10. Local unchanged core strict regression: PASS 7/7. Final macOS compile/check/clippy and package verification require the current CI run. Actual AE load/runtime About confirmation remains BLOCKED: this environment has no connected After Effects host.
++
++## Compatibility and limitations
++
++No render math, default values, UI ordering or persistent parameter IDs changed. The old installer still creates a reformatted copy and installs automatically; it is not approved by this candidate's release gate. No user installation is performed. Candidate signing is ad-hoc, not Developer ID notarization. Runtime identity shown by real AE, clean install/restart, migration and full preset/output parity still require actual host evidence.
++
++Research: https://doc.rust-lang.org/cargo/reference/build-scripts.html (OUT_DIR, rustc-env and invalidation); https://docs.github.com/en/actions/tutorials/store-and-share-data (immutable artifacts, hashes). No additional third-party runtime library is introduced.
+--- a/stellar_gradient_v0.8.6_sdkless_mac/docs/FINISH_GATE.md
++++ b/stellar_gradient_v0.8.6_sdkless_mac/docs/FINISH_GATE.md
+@@ -44,3 +44,12 @@
+ | Final delivery | BLOCKED | All mandatory gates PASS for unchanged candidate |
+ 
+ Historical reports remain historical. A successful code-side CI run must not be described as release approval.
++
++
++## v0.9.6 identity implementation
++
++First new baseline CI (058d8f7, run 36449152224): all eight jobs PASS. The intermediate lock-only commit was not a candidate: its expanded source inventory requires the updated freeze manifest included with v0.9.6. No artifact from a failed gate is delivered.
++
++Implemented v0.9.6: generated runtime Build ID, synchronized Cargo/PiPL/About version, committed Cargo.lock, --locked CI, dirty/derived build refusal, signed-payload manifest, read-only final verification, ten negative/positive identity tests and additional Rust palette/identity tests. Local Python 10/10 and core strict 7/7 PASS; final current-commit CI pending at implementation time.
++
++AE gates are BLOCKED, not PASS: no After Effects runtime is connected in this execution environment. Original Cosmic.aex was not available from current attachments or the inspected Library file listing, so reference preset/output comparison cannot be rerun here. The condition for release is a controlled AE session with the exact candidate and accessible reference fixtures. Do not substitute these new tests for that session.
+--- a/stellar_gradient_v0.8.6_sdkless_mac/docs/SOURCE_FREEZE_V08_SHA256.txt
++++ b/stellar_gradient_v0.8.6_sdkless_mac/docs/SOURCE_FREEZE_V08_SHA256.txt
+@@ -1,6 +1,7 @@
+ 88567d6963308ed540f04214617c97e09790ef116b81a59150f33ee23ce7a35b  CMakeLists.txt
+ e078ed315f195ac5551ac0a36e65488729b9473995b8db18c92bace6852398e0  FIRST_MAC_BUILD.command
+-1809e30104036f6feb65594cd100f8158a8c128b69cd5d7f26df2ef6ba61455d  sdkless/Cargo.toml
++0b27f605ef3fa03991c84003d6b5d625d595a81566f326e223a3a7c77a8f00e9  sdkless/Cargo.lock
++6698d7d2fe63ca317351c4d9674247324549d79bd1e9be44d0c81f5b93b8c8bc  sdkless/Cargo.toml
+ 71ba5ce05ac65d5e7d1ac5ca7dbed05d9eb8c4c4a252dc1c72bb447f43ed1baf  sdkless/THIRD_PARTY_NOTICES.md
+ 2b639798527fce8804f64913ade4328e54ff6b6857483cec9b26ca8e8931f012  sdkless/bridge/BridgeInternal.hpp
+ a6da57d767e1a72639cdb7c8a901719c47ca5cf6d427e559dce265a44ce85cc7  sdkless/bridge/MetalBridge.mm
+@@ -9,8 +10,8 @@
+ d6add8ad8804d5ea7adbc76aa3277d2d7b6e2e56669f71b4ee27df833e9f9540  sdkless/bridge/bridge_formats_test.cpp
+ f5d106149db877800a30bcc8bc1f6a77c480593bd1bcef03035fb00b9b08aee1  sdkless/bridge/bridge_mfr_test.cpp
+ 7ccd972b04ab763196c57ebb35045f1a71db3a3017cf93d31524861f4565e496  sdkless/bridge/bridge_parity_test.cpp
+-5284d6ab97a1ed93bc20d83d438ec82c290c66b7565ad1e825bcc0b8a85cf5be  sdkless/build.rs
+-4f9e6c8f9a4a161bc9aa78b922d6bad8870fe302e4e3438925c123ee9b406d7b  sdkless/src/lib.rs
++c6f4631243648528c82417f004397307e8a575257c6697855eb55023b542f5ce  sdkless/build.rs
++547f0fb41435ae50700107a89a1fc767c4a10b17427a22c709fb4bba021977ba  sdkless/src/lib.rs
+ cb34a87020c8a487088fbd910061f6c4aca51c7acd5bcb6cde67d1519095b9bd  sdkless/tools/build_and_install_macos.command
+ eeeb6509d52a502a8388b41f949490ba04f354ae1975cf3cf23bd4a1219e6af5  src/core/Math.h
+ 833e859bcd7db227f3826bbe2f7aa04139442dca354c4dd7219f109832aec02e  src/core/MipPyramid.h
+@@ -35,12 +36,15 @@
+ be22b91bd864867d169aa68519c8b25d2e22f006b51d88d8de89a34f8bfd06ff  tests/tile_consistency.cpp
+ 074e18ce2cc33d73ab966100df5e0481ffa92ab21efdf50dd49ebf61e894be32  tools/audit.sh
+ 26d2342c1825dfc3103084ad8af7e35a7336bd52c15ff0416307d9b4b8f3f235  tools/build_core.sh
++c7a58e88324e47b7688465d534f76ba376df5facb41e587aab38ff2df825958d  tools/build_identity.py
+ d59696ddb29a436bad42711a286858c1c0be279a7e3da4fdff7e4f5deb10e1ae  tools/build_mac.sh
+ 00325886e35ce66224481c1409ae31f29279d3b128e1d5ee6126efbacfc050f4  tools/doctor_mac.sh
+ b6cf8e79157722e1b3ab0a9d27cd42451a0539bf6dc8e3240662d0b2ba08c221  tools/embed_metal.py
+ 626b601a5b1bdc270de63019c658b5674535898db33d3932d92f85e48ac690c2  tools/install_mac.sh
+ 10846b03fadf1f94d58fcdc38672f80a3b22950114fb7e7ccd769b965da0ad45  tools/mac_benchmark_env.sh
++9c75eded1bca486a3272c0f2850ce491f514edb8cd9fbf61cee471855f4b49a1  tools/package_identity.py
+ 8176a6c5f7d2716405f29047f8ec185b4ec62c4ded5a7dc0acc9d31f937c9fad  tools/summarize_benchmark.py
++c4b0d0f1fd11ec578e7b07b0aa4f7e8bf3b9ceaf089e0ef85925b7e5111400e0  tools/test_build_identity.py
+ fc5a4ecc0a6e2506a3141c2b8633f1f940262aff7af9f8223c8dd77c6d5820e1  tools/verify_ae_contract.py
+ 31a5a168467fc20234adf44d2c35092db785e5a31ae4b95e8064c03d28a875fc  tools/verify_code_freeze.py
+ 5148ce295280270530d949149be8c5ae73babee2fa7d57aa2f40aea03fa63992  tools/verify_metadata.py
