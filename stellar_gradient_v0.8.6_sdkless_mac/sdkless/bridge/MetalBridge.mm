@@ -83,9 +83,16 @@ void* sg_metal_create(void* mtl_device, int32_t* supports_f32_filtering) {
     // mathFloatingPointFunctions. Keep an old-SDK/runtime fallback without
     // turning deprecation warnings into build failures under -Werror.
 #if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 150000
-    if (@available(macOS 15.0, *)) {
+    // Avoid @available here: for a macOS 11 deployment target Clang can emit
+    // ___isPlatformVersionAtLeast, which is undesirable in this SDK-less
+    // hot-reload dylib. Objective-C selector checks are sufficient and safe.
+    if ([options respondsToSelector:@selector(setMathMode:)] &&
+        [options respondsToSelector:@selector(setMathFloatingPointFunctions:)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
         options.mathMode=MTLMathModeSafe;
         options.mathFloatingPointFunctions=MTLMathFloatingPointFunctionsPrecise;
+#pragma clang diagnostic pop
     } else {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
