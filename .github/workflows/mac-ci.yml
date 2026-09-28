@@ -5,6 +5,7 @@ on:
     branches: [main, fix/stellar-release-gate]
     paths:
       - ".github/workflows/mac-ci.yml"
+      - ".gitignore"
       - "stellar_gradient_v0.8.6_sdkless_mac/CMakeLists.txt"
       - "stellar_gradient_v0.8.6_sdkless_mac/FIRST_MAC_BUILD.command"
       - "stellar_gradient_v0.8.6_sdkless_mac/src/**"
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/mac-ci.yml"
+      - ".gitignore"
       - "stellar_gradient_v0.8.6_sdkless_mac/**"
   workflow_dispatch:
 
@@ -60,6 +62,7 @@ jobs:
       - name: Verify frozen contracts
         working-directory: ${{ env.SRC }}
         run: |
+          python3 tools/test_build_identity.py
           python3 tools/verify_metadata.py
           python3 tools/verify_code_freeze.py
           python3 tools/verify_metal_perf.py
@@ -153,7 +156,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: cargo-quality-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.toml', env.SRC)) }}
+          key: cargo-quality-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.lock', env.SRC)) }}
       - name: fmt + check + test + clippy
         working-directory: ${{ env.SRC }}
         run: |
@@ -163,9 +166,9 @@ jobs:
           cd .sdkless-ci
           cargo fmt --all
           cargo fmt --all -- --check
-          cargo check --release
-          cargo test --release
-          cargo clippy --release -- -D warnings
+          cargo check --release --locked
+          cargo test --release --locked
+          cargo clippy --release --locked -- -D warnings
 
   release-bundle:
     name: ARM64 plugin bundle
@@ -182,14 +185,15 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.toml', env.SRC)) }}
+          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.lock', env.SRC)) }}
       - name: Build ARM64 host
         working-directory: ${{ env.SRC }}/sdkless
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          SG_REQUIRE_CLEAN_BUILD: "1"
         run: |
           set -euo pipefail
-          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
       - name: Bundle + ad-hoc sign
         shell: bash
         run: |
@@ -211,11 +215,15 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleExecutable string StellarGradient' "$BUNDLE/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist"
 
+          IDENTITIES=(target/"$TRIPLE"/release/build/stellar_gradient_host-*/out/stellar-build.json)
+          test "${#IDENTITIES[@]}" -eq 1 && test -f "${IDENTITIES[0]}"
+          python3 "$SRC/tools/package_identity.py" "$BUNDLE" --stamp "${IDENTITIES[0]}" --commit "$GITHUB_SHA"
           codesign --force --deep --sign - "$BUNDLE"
           codesign --verify --deep --strict "$BUNDLE"
           file "$BUNDLE/Contents/MacOS/StellarGradient"
           nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2'
           plutil -lint "$BUNDLE/Contents/Info.plist"
+          python3 "$SRC/tools/package_identity.py" "$BUNDLE" --manifest StellarGradient.manifest.json --commit "$GITHUB_SHA"
           ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient.plugin.zip
           shasum -a 256 StellarGradient.plugin.zip > StellarGradient.plugin.zip.sha256
           git rev-parse HEAD > StellarGradient.commit.txt
@@ -226,4 +234,5 @@ jobs:
             StellarGradient.plugin.zip
             StellarGradient.plugin.zip.sha256
             StellarGradient.commit.txt
+            StellarGradient.manifest.json
           if-no-files-found: error
