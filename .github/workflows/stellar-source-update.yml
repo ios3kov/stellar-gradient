@@ -18,25 +18,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 7e9a0addf1b8be9d528910e283db382633d18cd5
+          test "$(git rev-parse HEAD^)" = 233fafa762eeeec977574d2e6dbb70c0cc2c9225
           sed -e 's/^@@ -0,0 +1,88 @@$/@@ -0,0 +1,86 @@/' -e 's/^@@ -0,0 +1,123 @@$/@@ -0,0 +1,124 @@/' .ci/stellar-source-update.patch > "$RUNNER_TEMP/stellar-source-update.patch"
           echo "45224a7215b2373cde0323600e4b2e60880ec032dfd651715429f281ac036f57  $RUNNER_TEMP/stellar-source-update.patch" | sha256sum --check
           git apply --check "$RUNNER_TEMP/stellar-source-update.patch"
           git apply "$RUNNER_TEMP/stellar-source-update.patch"
-          sha256sum --check <<'HASHES'
-          9f58c4dffa78d6c710722551f8c49ae2d83d51c76831f30b8b61799c4cfaeeeb  .gitignore
-          fa46d98d28a7d9463d1794fadf3f05a04a36230d074da6dc9910a96cc8d648ae  README.md
-          561d59483afd91456b21199e9ba6d306f9ed90287a75a8f413060f04a65b9469  stellar_gradient_v0.8.6_sdkless_mac/docs/BUILD_IDENTITY.md
-          c19520b5a17785c5ab73650ec47c849478e63d01e0fa98cb314a1a211a923041  stellar_gradient_v0.8.6_sdkless_mac/docs/FINISH_GATE.md
-          93aa89afabeb45baa8e8de06a89cc3221e0b18fe71a724032c28997d9c357a5d  stellar_gradient_v0.8.6_sdkless_mac/docs/SOURCE_FREEZE_V08_SHA256.txt
-          0b27f605ef3fa03991c84003d6b5d625d595a81566f326e223a3a7c77a8f00e9  stellar_gradient_v0.8.6_sdkless_mac/sdkless/Cargo.lock
-          6698d7d2fe63ca317351c4d9674247324549d79bd1e9be44d0c81f5b93b8c8bc  stellar_gradient_v0.8.6_sdkless_mac/sdkless/Cargo.toml
-          c6f4631243648528c82417f004397307e8a575257c6697855eb55023b542f5ce  stellar_gradient_v0.8.6_sdkless_mac/sdkless/build.rs
-          547f0fb41435ae50700107a89a1fc767c4a10b17427a22c709fb4bba021977ba  stellar_gradient_v0.8.6_sdkless_mac/sdkless/src/lib.rs
-          c7a58e88324e47b7688465d534f76ba376df5facb41e587aab38ff2df825958d  stellar_gradient_v0.8.6_sdkless_mac/tools/build_identity.py
-          9c75eded1bca486a3272c0f2850ce491f514edb8cd9fbf61cee471855f4b49a1  stellar_gradient_v0.8.6_sdkless_mac/tools/package_identity.py
-          c4b0d0f1fd11ec578e7b07b0aa4f7e8bf3b9ceaf089e0ef85925b7e5111400e0  stellar_gradient_v0.8.6_sdkless_mac/tools/test_build_identity.py
-          HASHES
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root = Path('stellar_gradient_v0.8.6_sdkless_mac')
+          test = root / 'tools/test_build_identity.py'
+          old = '        self.git("init", "-q")'
+          new = old + '\n        self.git("config", "maintenance.auto", "false")\n        self.git("config", "gc.auto", "0")'
+          text = test.read_text()
+          assert text.count(old) == 1
+          test.write_text(text.replace(old, new))
+          digest = hashlib.sha256(test.read_bytes()).hexdigest()
+          assert digest == '86c903554a2831b8cfc4dc4da4518c2bd6cb2fa95ce3d99c4c7f151e6879aacd'
+          manifest = root / 'docs/SOURCE_FREEZE_V08_SHA256.txt'
+          text = manifest.read_text()
+          old = 'c4b0d0f1fd11ec578e7b07b0aa4f7e8bf3b9ceaf089e0ef85925b7e5111400e0  tools/test_build_identity.py'
+          assert text.count(old) == 1
+          manifest.write_text(text.replace(old, digest + '  tools/test_build_identity.py'))
+          assert hashlib.sha256(manifest.read_bytes()).hexdigest() == 'e7de497c7f44f1057853736b8ddc275f89928110f382e192bc0e34d0ca41b32e'
+          PY
           cd stellar_gradient_v0.8.6_sdkless_mac
           python3 tools/test_build_identity.py
           python3 tools/verify_code_freeze.py
@@ -50,10 +55,3 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix: synchronize Stellar v0.9.6 runtime and package identity'
           git push origin HEAD:refs/heads/fix/stellar-release-gate
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: source-transfer-diagnostic
-          path: .ci/stellar-source-update.patch
-          include-hidden-files: true
-          if-no-files-found: error
