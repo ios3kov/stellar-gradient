@@ -30,7 +30,7 @@ impl_abi = int(require(r'const\s+HOT_RELOAD_STATE_ABI:\s*u64\s*=\s*(\d+)\s*;', l
 shell_abi = int(require(r'kImplementationStateAbi\s*=\s*(\d+)\s*;', shell, "shell StateABI"))
 if impl_abi != shell_abi:
     raise SystemExit(f"StateABI drift: implementation={impl_abi} shell={shell_abi}")
-if impl_abi != 2:
+if impl_abi != 3:
     raise SystemExit(f"unexpected Stellar StateABI {impl_abi}; update verifier intentionally when schema changes")
 
 if "ae::define_effect!(Plugin, (), Params);" not in lib:
@@ -78,7 +78,10 @@ expected = {
         ("output_rect","RectC"),("work_rect","RectC"),("time_seconds","f64"),
         ("frame_index","u32"),("engine_mode","i32"),
     ],
-    "GpuContext": [("ptr","usize"),("generation","u64"),("supports_f32","bool")],
+    "GpuContext": [
+        ("ptr","usize"),("generation","u64"),
+        ("destroy_fn","MetalDestroyFn"),("supports_f32","bool")
+    ],
 }
 for name, wanted in expected.items():
     actual = fields(name)
@@ -93,7 +96,9 @@ for evidence in [
     "offset_of!(RenderStateC, engine_mode)",
     "size_of::<GpuContext>()",
     "offset_of!(GpuContext, generation)",
+    "offset_of!(GpuContext, destroy_fn)",
     "AEHotLoader_ImplementationRuntimeABI",
+    "AEHotLoader_SetGeneration",
 ]:
     if evidence not in lib:
         raise SystemExit(f"missing hot-reload state/layout evidence: {evidence}")
