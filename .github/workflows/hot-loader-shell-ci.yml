@@ -48,7 +48,7 @@ jobs:
           AE_HOT_LOADER_IMPL_LABEL: stellar-default
         run: |
           set -euo pipefail
-          cargo build --manifest-path "$SRC/sdkless/Cargo.toml" --release --target aarch64-apple-darwin
+          cargo build --manifest-path "$SRC/sdkless/Cargo.toml" --release --locked --target aarch64-apple-darwin
 
       - name: Test implementation state contract
         env:
@@ -64,7 +64,7 @@ jobs:
           AE_HOT_LOADER_IMPL_LABEL: stellar-candidate-v2
         run: |
           set -euo pipefail
-          cargo build --manifest-path "$SRC/sdkless/Cargo.toml" --release --target aarch64-apple-darwin
+          cargo build --manifest-path "$SRC/sdkless/Cargo.toml" --release --locked --target aarch64-apple-darwin
 
       - name: Build shell and assemble bundle
         run: |
