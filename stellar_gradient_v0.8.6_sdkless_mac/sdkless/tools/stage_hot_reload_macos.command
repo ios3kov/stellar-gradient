@@ -48,11 +48,13 @@ echo "Building Stellar Gradient implementation: $LABEL"
 if (( USE_RUSTUP )); then
   CARGO_TARGET_DIR="$TARGET" cargo +"$RUST_TOOLCHAIN" build \
     --release \
+    --locked \
     --target "$TRIPLE" \
     --manifest-path "$HOST_BUILD/Cargo.toml"
 else
   CARGO_TARGET_DIR="$TARGET" cargo build \
     --release \
+    --locked \
     --target "$TRIPLE" \
     --manifest-path "$HOST_BUILD/Cargo.toml"
 fi
