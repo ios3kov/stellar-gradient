@@ -1,4 +1,5 @@
 use pipl::*;
+use std::process::Command;
 use std::env;
 use std::path::PathBuf;
 
@@ -6,6 +7,20 @@ const PF_PLUG_IN_VERSION: u16 = 13;
 const PF_PLUG_IN_SUBVERS: u16 = 29;
 
 fn main() {
+    let rustc = std::env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
+    let rustc_version = Command::new(rustc)
+        .arg("--version")
+        .output()
+        .ok()
+        .and_then(|out| String::from_utf8(out.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "rustc-unknown".to_string());
+    let target = std::env::var("TARGET").unwrap_or_else(|_| "target-unknown".to_string());
+    println!(
+        "cargo:rustc-env=AE_HOT_LOADER_RUNTIME_ABI={}|{}|after-effects=83dcc93734fd5db1335b6ec83cba7a6505a39dcc",
+        rustc_version,
+        target
+    );
     println!("cargo:rerun-if-env-changed=AE_HOT_LOADER_IMPL_LABEL");
     // Rust 1.80+ validates cfg names at the destination crate. The
     // after-effects macro expands these cfgs in our crate, so register them
