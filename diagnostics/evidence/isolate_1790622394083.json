@@ -1,0 +1,277 @@
+{
+  "archive_sha256": "31dd998ea2f83854280a81d80217bfa115744c06a78ba4f60334a7486feed006",
+  "benchmarks_ms": {
+    "basefix": {
+      "1280x720 base": [
+        21.122,
+        21.736,
+        21.432
+      ],
+      "1280x720 full": [
+        99.327,
+        98.61,
+        103.03
+      ],
+      "1280x720 procedural": [
+        36.421,
+        41.483,
+        40.369
+      ],
+      "640x360 base": [
+        4.804,
+        5.058,
+        4.311
+      ],
+      "640x360 full": [
+        27.914,
+        27.744,
+        28.307
+      ],
+      "640x360 procedural": [
+        9.311,
+        10.064,
+        9.452
+      ]
+    },
+    "baseline": {
+      "1280x720 base": [
+        21.514,
+        23.74,
+        19.993
+      ],
+      "1280x720 full": [
+        102.373,
+        99.117,
+        105.021
+      ],
+      "1280x720 procedural": [
+        40.124,
+        43.066,
+        41.184
+      ],
+      "640x360 base": [
+        4.568,
+        3.866,
+        4.15
+      ],
+      "640x360 full": [
+        28.231,
+        25.285,
+        25.956
+      ],
+      "640x360 procedural": [
+        9.335,
+        9.245,
+        8.285
+      ]
+    }
+  },
+  "case_summary": {
+    "all_after_status": "DONE",
+    "all_captured_host_errors": [],
+    "all_cleanup": "PASS",
+    "all_images": "RGB8,512x288,no alpha",
+    "all_status": "PASS",
+    "count": 22
+  },
+  "environment": {
+    "ae_build": 101,
+    "ae_version": "25.6x101",
+    "os": "Macintosh OS 26.6.2/64"
+  },
+  "events_sha256": "5e38316937672df30e17517ea814862f6b481b8cf73d85fcad076163013a7978",
+  "features": {
+    "base": {
+      "cosmic": {
+        "mae_vs_own_base": 0.0,
+        "neighbor_mae": 2.771413790555022e-05
+      },
+      "stellar": {
+        "mae_vs_own_base": 0.0,
+        "neighbor_mae": 0.0
+      }
+    },
+    "defaults_no_grain": {
+      "cosmic": {
+        "mae_vs_own_base": 61.87250584162171,
+        "neighbor_mae": 0.1952337841499766
+      },
+      "stellar": {
+        "mae_vs_own_base": 43.17497339156604,
+        "neighbor_mae": 13.53677974034932
+      }
+    },
+    "defaults_no_turbulence": {
+      "cosmic": {
+        "mae_vs_own_base": 61.232588297182566,
+        "neighbor_mae": 3.596771610868869
+      },
+      "stellar": {
+        "mae_vs_own_base": 54.69517133384715,
+        "neighbor_mae": 34.87364816593994
+      }
+    },
+    "depth": {
+      "cosmic": {
+        "mae_vs_own_base": 44.92789114397915,
+        "neighbor_mae": 0.43198026753381125
+      },
+      "stellar": {
+        "mae_vs_own_base": 50.08171235977049,
+        "neighbor_mae": 0.3039686645480748
+      }
+    },
+    "depth_softness": {
+      "cosmic": {
+        "mae_vs_own_base": 42.628029385498095,
+        "neighbor_mae": 0.2612550193383096
+      },
+      "stellar": {
+        "mae_vs_own_base": 50.08171235977049,
+        "neighbor_mae": 0.3039686645480748
+      }
+    },
+    "diffusion": {
+      "cosmic": {
+        "mae_vs_own_base": 0.6761294821448233,
+        "neighbor_mae": 0.13597787795925406
+      },
+      "stellar": {
+        "mae_vs_own_base": 0.1680857831443217,
+        "neighbor_mae": 0.09308870987608701
+      }
+    },
+    "glow": {
+      "cosmic": {
+        "mae_vs_own_base": 55.256052654114825,
+        "neighbor_mae": 0.038187002685192026
+      },
+      "stellar": {
+        "mae_vs_own_base": 17.050118667498563,
+        "neighbor_mae": 0.03365112211465031
+      }
+    },
+    "grain": {
+      "cosmic": {
+        "mae_vs_own_base": 3.071913115817032,
+        "neighbor_mae": 4.1016123469563714
+      },
+      "stellar": {
+        "mae_vs_own_base": 32.99328060581593,
+        "neighbor_mae": 42.59593402803439
+      }
+    },
+    "turbulence": {
+      "cosmic": {
+        "mae_vs_own_base": 5.0609516644034205,
+        "neighbor_mae": 0.2284661148473875
+      },
+      "stellar": {
+        "mae_vs_own_base": 26.196816774935467,
+        "neighbor_mae": 18.351612346956372
+      }
+    },
+    "turbulence_size6": {
+      "cosmic": {
+        "mae_vs_own_base": 5.260692308633367,
+        "neighbor_mae": 0.11450250043110881
+      },
+      "stellar": {
+        "mae_vs_own_base": 26.45938084926781,
+        "neighbor_mae": 10.365900524721011
+      }
+    },
+    "turbulence_softness": {
+      "cosmic": {
+        "mae_vs_own_base": 6.221259832886801,
+        "neighbor_mae": 0.09252518907200749
+      },
+      "stellar": {
+        "mae_vs_own_base": 23.6109479942746,
+        "neighbor_mae": 17.510235754933117
+      }
+    }
+  },
+  "loaded_build_id": "NOT_VERIFIED",
+  "local_cpu_replay": {
+    "new": {
+      "raw_sha256": "0ca968d739dc13702669b9cc6b03af1e7b368bd8260a65cab24f5d2fa5ba7baf",
+      "versus_cosmic_base": {
+        "mae_codes": 0.0675273118753135,
+        "max_codes": 3.0,
+        "rmse_codes": 0.3053165793499674
+      },
+      "versus_installed_stellar_base": {
+        "mae_codes": 58.30973440501095,
+        "max_codes": 141.0,
+        "rmse_codes": 69.33743291953317
+      }
+    },
+    "old": {
+      "raw_sha256": "10e3a30f205899e31c1d3eaa1c459f8259ca06451467873bde30b0606f86f1e9",
+      "versus_cosmic_base": {
+        "mae_codes": 58.283275834648464,
+        "max_codes": 141.0,
+        "rmse_codes": 69.32015498772911
+      },
+      "versus_installed_stellar_base": {
+        "mae_codes": 0.0,
+        "max_codes": 0.0,
+        "rmse_codes": 0.0
+      }
+    },
+    "scope": "base only, output projection validated against old installed Stellar base; not a host/GPU test"
+  },
+  "new_quality_signatures": [
+    "base mean={0.197606848364,0.0984812350607,0.229838477415,0.363154532137} max={0.991337895393,0.680429458618,0.960008561611,1} energy=0.68247069041",
+    "heavy mean={0.283385199018,0.145518645682,0.217021554956,0.393068882846} max={1.17579376698,0.818551063538,1.05664932728,1} energy=0.797906756812",
+    "diffusion mean={0.295177333564,0.150957449739,0.227051498241,0.410032585306} max={1.17445683479,0.810662865639,1.05105912685,1} energy=0.733425523617"
+  ],
+  "png_sha256": {
+    "cosmic_base": "d2618b36a2f3421cacd06c60b6d7ca5c5226fbe91dcd809bd2384fd906ba7d52",
+    "cosmic_defaults_no_grain": "aebcd4fb1ebe57bfbc1847b64b960fc3a7449bbe159a6ace67bc359e6aa53f97",
+    "cosmic_defaults_no_turbulence": "aabc7e4c5a14decbab0d32cff99d50805469cea3a452a819718b0d384eefdf7a",
+    "cosmic_depth": "645605e2f94ca4fa3acf09c1b26acb9318a71421da6d200e815833e9ee5c5a8e",
+    "cosmic_depth_softness": "6cbe4a96b7f10e7bd48672db1e731dcbd581daa8ab3f78452f155b9941a2eb9a",
+    "cosmic_diffusion": "e39dea802a3513a88b83c3d5c79e4cfd65be29014991f3822ef0eda42066ea6b",
+    "cosmic_glow": "fff83a0df83e3b162977347af7c6d1f0634996283fe25183ee6c08e71f50b7ea",
+    "cosmic_grain": "4bc12228be2bb6251b31fbdfe5ebc2a2eb4d3c13f2716066d7e294d0f3634bd7",
+    "cosmic_turbulence": "4c2154486cfea8d01b6d79a9434567cc5756e1e55f8bdaa991f0209d2a689dac",
+    "cosmic_turbulence_size6": "154a83a90e5b6cff4d2d3c8567e98fa0d6a59fb9bf66f71f3547b8c1a858ed40",
+    "cosmic_turbulence_softness": "2477b96ad4eb43b5a31ea501c2cd33e65cadf8a06934fc7a534fd9b70b3f2d4c",
+    "stellar_base": "ee47ceebba9f91fbceb8028ef2a4009fdabaee682a2c04c2858ae7b23f8cb6ba",
+    "stellar_defaults_no_grain": "d34ff837bd9a27f8e23e1fcab5c65b6323abe405381add2091446a565f3ade5c",
+    "stellar_defaults_no_turbulence": "0b1e6adc7a80182258a76f8530a6be1e95088becd191cd0106a8bdf67e443ed7",
+    "stellar_depth": "e53242d8005e16c8c5d35bcb2adca3480445b8c5fff4dfa8ff024a8e1469db6a",
+    "stellar_depth_softness": "e53242d8005e16c8c5d35bcb2adca3480445b8c5fff4dfa8ff024a8e1469db6a",
+    "stellar_diffusion": "eb633263c8290359621c82022b93f1b82389da5e4531e7c573ecfd8c08ed2d3c",
+    "stellar_glow": "51b002936e15486297c4f70ddb656eebccc62477a9d40e1e25da110a10897aff",
+    "stellar_grain": "93b66d71800edc259900fd925dff40d1b41ed1127a2064ac7f435e2aca22133d",
+    "stellar_turbulence": "ab8b50f01a515d0c7042060018fca5862b4c9c30a94d7a99660c77dc47eaa3e1",
+    "stellar_turbulence_size6": "8eac792f00babd61f973e578778db7e4481e20442bd98ef405f30c8124ac6a34",
+    "stellar_turbulence_softness": "5542ec708b8d4425cddee4d27c735f6370e35e8f55cd319685e3d9875b7f47e9"
+  },
+  "previous_quality_signatures": [
+    "const Signature expected_base{{0.204531780142,0.111062071743,0.183825664775,0.363154532137},{0.991368830204f,0.680644214153f,0.960009276867f,1.0f},0.650493346755};",
+    "const Signature expected_heavy{{0.224864763109,0.119129548097,0.260343978208,0.389058099858},{1.1093994379f,0.781969428062f,1.05849254131f,1.0f},0.754382439322};",
+    "const Signature expected_diffusion{{0.234482478382,0.124349958217,0.271920968823,0.406525578987},{1.09005272388f,0.781263768673f,1.05771040916f,1.0f},0.686040455902};"
+  ],
+  "project_settings": {
+    "bits_per_channel": 8,
+    "linear_blending": false,
+    "working_space": "sRGB IEC61966-2.1"
+  },
+  "release_status": "NOT_APPROVED",
+  "report_sha256": "fb0ea38cab95f435817c14ac66ce9fc23f4a9e9c3fb9f96fbe543e0cf2b7569c",
+  "reported_summary": "CAPTURES_COMPLETE",
+  "run_id": "Stellar-Isolate-1790622394083-275372080",
+  "runner_build_id": "isolate-1.0-ec24297f36ae-993f75b69800",
+  "runner_version": "Isolate 1.0",
+  "schema": 1,
+  "statistics_scope": {
+    "outputs": "22 original PNGs remain unchanged; no alpha/HDR data",
+    "overlay_exclusion": "pure red overlay plus three Manhattan pixels; scalar calculations only",
+    "unit": "8-bit RGB output code (0..255)",
+    "unoccluded_pixels": 108988
+  }
+}
