@@ -102,40 +102,62 @@ jobs:
 
           ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient-hot-loader-shell.zip
 
-      - name: Smoke shell reload
+      - name: Smoke bundled default to candidate reload
         shell: bash
         run: |
           set -euo pipefail
-          FAKE_HOME="$RUNNER_TEMP/stellar-home"
+          FAKE_HOME="$RUNNER_TEMP/hot-loader-home"
           IMPL_DIR="$FAKE_HOME/Library/Application Support/AE Hot Loader/implementations/stellar-gradient"
           mkdir -p "$IMPL_DIR"
-          cp target-hot-candidate/aarch64-apple-darwin/release/libstellar_gradient_host.dylib "$IMPL_DIR/current.dylib"
 
-          cat > "$RUNNER_TEMP/stellar_reload_smoke.cpp" <<'CPP'
+          cat > "$RUNNER_TEMP/reload_smoke.cpp" <<'CPP'
+          #include <cstdlib>
           #include <cstdio>
+          #include <cstring>
           #include <dlfcn.h>
+          #include <filesystem>
           using ReloadFn = int (*)(char*, std::size_t);
+
           int main(int argc, char** argv) {
-              if (argc != 2) return 10;
+              if (argc != 5) return 10;
               void* handle = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
               if (!handle) { std::fprintf(stderr, "%s\n", dlerror()); return 11; }
               auto reload = reinterpret_cast<ReloadFn>(dlsym(handle, "AEHotLoader_ShellReload"));
               if (!reload) return 12;
 
-              char first_msg[2048]{};
-              const int first = reload(first_msg, sizeof(first_msg));
-              std::printf("first=%d %s\n", first, first_msg);
-              if (first != 0) return 13;
+              char initial[2048]{};
+              const int first = reload(initial, sizeof(initial));
+              std::printf("initial=%d %s\n", first, initial);
+              if (first != 0 || std::strstr(initial, argv[3]) == nullptr) return 13;
 
-              char second_msg[2048]{};
-              const int second = reload(second_msg, sizeof(second_msg));
-              std::printf("second=%d %s\n", second, second_msg);
-              return second == 1 ? 0 : 14;
+              const char* home = std::getenv("HOME");
+              if (!home) return 14;
+              std::filesystem::path current =
+                  std::filesystem::path(home) /
+                  argv[4] /
+                  "current.dylib";
+              std::filesystem::create_directories(current.parent_path());
+              std::filesystem::copy_file(
+                  argv[2], current, std::filesystem::copy_options::overwrite_existing);
+
+              char candidate[2048]{};
+              const int second = reload(candidate, sizeof(candidate));
+              std::printf("candidate=%d %s\n", second, candidate);
+              if (second != 0 || std::strstr(candidate, "candidate") == nullptr) return 15;
+
+              char unchanged[2048]{};
+              const int third = reload(unchanged, sizeof(unchanged));
+              std::printf("unchanged=%d %s\n", third, unchanged);
+              return third == 1 ? 0 : 16;
           }
           CPP
 
-          xcrun clang++ -std=c++17 -arch arm64 "$RUNNER_TEMP/stellar_reload_smoke.cpp" -o "$RUNNER_TEMP/stellar_reload_smoke"
-          HOME="$FAKE_HOME" "$RUNNER_TEMP/stellar_reload_smoke" "$(pwd)/dist/StellarGradient.plugin/Contents/MacOS/StellarGradient"
+          xcrun clang++ -std=c++17 -arch arm64 "$RUNNER_TEMP/reload_smoke.cpp" -o "$RUNNER_TEMP/reload_smoke"
+          HOME="$FAKE_HOME" "$RUNNER_TEMP/reload_smoke" \
+            "$(pwd)/dist/StellarGradient.plugin/Contents/MacOS/StellarGradient" \
+            "$(pwd)/target-hot-candidate/aarch64-apple-darwin/release/libstellar_gradient_host.dylib" \
+            "stellar-default" \
+            "Library/Application Support/AE Hot Loader/implementations/stellar-gradient"
 
       - name: Package hot-loader test kit
         run: |
