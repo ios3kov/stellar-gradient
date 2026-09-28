@@ -140,6 +140,11 @@ if impl_abi != 4:
 if "ae::define_effect!(Plugin, (), Params);" not in lib:
     raise SystemExit("effect global/sequence contract changed; review StateABI")
 
+if not re.search(r'struct\s+Plugin\s*;', lib):
+    raise SystemExit(
+        "Plugin global state is no longer empty; bump StateABI and update verifier intentionally"
+    )
+
 params_body = require(r'enum\s+Params\s*\{(.*?)\}', lib, "Params enum")
 actual_params = [(name, int(value)) for name, value in re.findall(r'([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(\d+)', params_body)]
 expected_names = [
