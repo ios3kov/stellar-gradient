@@ -6,6 +6,20 @@ use std::path::PathBuf;
 const PF_PLUG_IN_VERSION: u16 = 13;
 const PF_PLUG_IN_SUBVERS: u16 = 29;
 
+fn hot_reload_lock_fingerprint(manifest_dir: &std::path::Path) -> String {
+    let lock_path = manifest_dir.join("Cargo.lock");
+    let bytes = std::fs::read(&lock_path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", lock_path.display()));
+    println!("cargo:rerun-if-changed={}", lock_path.display());
+
+    let mut hash = 1469598103934665603u64;
+    for byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(1099511628211u64);
+    }
+    format!("{hash:016x}")
+}
+
 fn main() {
     let rustc = std::env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
     let rustc_version = Command::new(rustc)
@@ -16,8 +30,12 @@ fn main() {
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|| "rustc-unknown".to_string());
     let target = std::env::var("TARGET").unwrap_or_else(|_| "target-unknown".to_string());
+    let manifest_dir = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"),
+    );
+    let lock_fingerprint = hot_reload_lock_fingerprint(&manifest_dir);
     println!(
-        "cargo:rustc-env=AE_HOT_LOADER_RUNTIME_ABI={}|{}|after-effects=83dcc93734fd5db1335b6ec83cba7a6505a39dcc",
+        "cargo:rustc-env=AE_HOT_LOADER_RUNTIME_ABI={}|{}|after-effects=83dcc93734fd5db1335b6ec83cba7a6505a39dcc|lock={},
         rustc_version,
         target
     );
