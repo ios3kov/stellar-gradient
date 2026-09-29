@@ -16,7 +16,7 @@ def body(text, name):
 
 def check_shader(text):
     finals=['SGBaseOutKernel','SGComposeOutKernel','SGDiffusionOutKernel']
-    intermediate=['shade_base','SGBaseKernel','SGBaseGlowKernel','composite_pixel','SGComposeInPlaceKernel']
+    intermediate=['shade_color','shade_base','SGBaseKernel','SGBaseUnmaskedKernel','SGSoftMaskKernel','SGGlowSourceKernel','SGBaseGlowKernel','composite_pixel','SGComposeInPlaceKernel']
     for n in finals:
         if body(text,n).count('finish_grain(')!=1: raise ValueError(n+': expected grain exactly once')
     for n in intermediate:
@@ -33,7 +33,7 @@ if (root/'src/gpu/StellarGradientMetalSource.generated.h').read_text()!=expected
     raise SystemExit('FAIL: regenerate embedded Metal header')
 if '--self-test' in sys.argv:
     bad=[s.replace('finish_grain(shade_base(src,depth_map,p,gid),p,gid)','shade_base(src,depth_map,p,gid)'),
-         s.replace('float4 s=load_bgra(src,p,gid);','float4 s=finish_grain(load_bgra(src,p,gid),p,gid);'),
+         s.replace('return float4(shade_color(depth_map,p,gid)*alpha,alpha);','return finish_grain(float4(shade_color(depth_map,p,gid)*alpha,alpha),p,gid);'),
          s.replace('pixel.rgb+=','pixel.a+=')]
     for t in bad:
         try: check_shader(t)

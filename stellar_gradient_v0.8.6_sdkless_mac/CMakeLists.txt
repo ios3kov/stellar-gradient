@@ -68,3 +68,8 @@ add_executable(stellar_metal_validation tests/metal_validation.cpp)
 target_link_libraries(stellar_metal_validation PRIVATE stellar_core)
 target_compile_options(stellar_metal_validation PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
 add_test(NAME stellar_metal_validation COMMAND stellar_metal_validation)
+
+add_executable(stellar_turbulence_softness tests/turbulence_softness.cpp)
+target_link_libraries(stellar_turbulence_softness PRIVATE stellar_core)
+target_compile_options(stellar_turbulence_softness PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+add_test(NAME stellar_turbulence_softness COMMAND stellar_turbulence_softness)

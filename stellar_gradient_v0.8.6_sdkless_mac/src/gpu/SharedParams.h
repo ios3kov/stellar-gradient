@@ -34,6 +34,8 @@ struct ParamsGPU {
     float bound_cx, bound_cy, phase_offset, depth_inv_diag;
     float depth_dir_x, depth_dir_y, rounding_clamped, turbulence_inv_x;
     float turbulence_inv_y, turbulence_evo_x, turbulence_evo_y, grain_inv_size;
+    // During GPU dispatch, the original turbulence_evolution/turbulence_softness
+    // slots plus turbulence_evo_x/y carry the two precomputed 4-D evolution pairs.
     float glow_lod, glow_spread, glow_threshold_inv, diffusion_lod;
     float diffusion_cx, diffusion_cy, diffusion_inv_feather;
     std::uint32_t depth_enabled;

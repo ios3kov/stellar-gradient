@@ -65,6 +65,130 @@ void box_blur_v(const std::vector<float>& src, std::vector<float>& dst, int w, i
     }
 }
 
+
+void box_blur_rgb_h(const std::vector<float>& src, std::vector<float>& dst, int w, int h, int radius) {
+    if (radius <= 0) { dst = src; return; }
+    const int span = radius * 2 + 1;
+    dst.resize(src.size());
+    // Each scanline is independent. Parallelizing scanlines preserves the exact
+    // accumulation order inside a row, so the output remains bit-identical while
+    // avoiding a single-thread bottleneck for Cosmic-style Softness.
+    parallel_rows(0, h, [&](int y0, int y1) {
+        for (int y=y0; y<y1; ++y) {
+            const std::size_t row=static_cast<std::size_t>(y)*static_cast<std::size_t>(w)*3u;
+            float sum[3]={0,0,0};
+            for(int k=-radius;k<=radius;++k){
+                const int xx=std::clamp(k,0,w-1); const std::size_t i=row+static_cast<std::size_t>(xx)*3u;
+                for(int c=0;c<3;++c) sum[c]+=src[i+static_cast<std::size_t>(c)];
+            }
+            for(int x=0;x<w;++x){
+                const std::size_t i=row+static_cast<std::size_t>(x)*3u;
+                for(int c=0;c<3;++c) dst[i+static_cast<std::size_t>(c)]=sum[c]/static_cast<float>(span);
+                const int rx=std::clamp(x-radius,0,w-1), ax=std::clamp(x+radius+1,0,w-1);
+                const std::size_t ri=row+static_cast<std::size_t>(rx)*3u, ai=row+static_cast<std::size_t>(ax)*3u;
+                for(int c=0;c<3;++c) sum[c]+=src[ai+static_cast<std::size_t>(c)]-src[ri+static_cast<std::size_t>(c)];
+            }
+        }
+    }, 48);
+}
+
+void box_blur_rgb_v(const std::vector<float>& src, std::vector<float>& dst, int w, int h, int radius) {
+    if (radius <= 0) { dst = src; return; }
+    const int span = radius * 2 + 1;
+    dst.resize(src.size());
+    // Columns are independent too. `parallel_rows` is a generic range splitter;
+    // here its range is X. Per-column floating-point accumulation order is unchanged.
+    parallel_rows(0, w, [&](int x0, int x1) {
+        for(int x=x0;x<x1;++x){
+            float sum[3]={0,0,0};
+            for(int k=-radius;k<=radius;++k){
+                const int yy=std::clamp(k,0,h-1); const std::size_t i=(static_cast<std::size_t>(yy)*w+static_cast<std::size_t>(x))*3u;
+                for(int c=0;c<3;++c) sum[c]+=src[i+static_cast<std::size_t>(c)];
+            }
+            for(int y=0;y<h;++y){
+                const std::size_t i=(static_cast<std::size_t>(y)*w+static_cast<std::size_t>(x))*3u;
+                for(int c=0;c<3;++c) dst[i+static_cast<std::size_t>(c)]=sum[c]/static_cast<float>(span);
+                const int ry=std::clamp(y-radius,0,h-1), ay=std::clamp(y+radius+1,0,h-1);
+                const std::size_t ri=(static_cast<std::size_t>(ry)*w+static_cast<std::size_t>(x))*3u;
+                const std::size_t ai=(static_cast<std::size_t>(ay)*w+static_cast<std::size_t>(x))*3u;
+                for(int c=0;c<3;++c) sum[c]+=src[ai+static_cast<std::size_t>(c)]-src[ri+static_cast<std::size_t>(c)];
+            }
+        }
+    }, 48);
+}
+
+
+// CPU optimization for the recovered 4-D turbulence. z/w are frame-constant
+// for each octave, and x/y advance over a regular layer-space grid. Cache the
+// nested permutation hashes for the tiny 2-D lattice touched by each octave;
+// per-pixel math keeps the same gradient and interpolation order as perlin4().
+struct Perlin4SliceCache {
+    struct Node { std::uint8_t hash[4]{}; }; // dz*2 + dw
+    int x0=0,y0=0,w=0,h=0,zi=0,wi=0;
+    float zf=0.0f,wf=0.0f,fade_z=0.0f,fade_w=0.0f;
+    std::vector<Node> nodes;
+
+    void build(float xmin,float xmax,float ymin,float ymax,float z,float ww) {
+        if (xmin>xmax) std::swap(xmin,xmax);
+        if (ymin>ymax) std::swap(ymin,ymax);
+        x0=static_cast<int>(std::floor(xmin)); y0=static_cast<int>(std::floor(ymin));
+        const int x1=static_cast<int>(std::floor(xmax))+1;
+        const int y1=static_cast<int>(std::floor(ymax))+1;
+        w=x1-x0+1; h=y1-y0+1;
+        zi=static_cast<int>(std::floor(z)); wi=static_cast<int>(std::floor(ww));
+        zf=z-static_cast<float>(zi); wf=ww-static_cast<float>(wi);
+        fade_z=perlin_fade(zf); fade_w=perlin_fade(wf);
+        nodes.resize(static_cast<std::size_t>(w)*static_cast<std::size_t>(h));
+        for(int yy=0;yy<h;++yy) for(int xx=0;xx<w;++xx){
+            Node& n=nodes[static_cast<std::size_t>(yy)*static_cast<std::size_t>(w)+static_cast<std::size_t>(xx)];
+            for(int dz=0;dz<2;++dz) for(int dw=0;dw<2;++dw){
+                int hash=perlin_perm(x0+xx);
+                hash=perlin_perm(hash+y0+yy);
+                hash=perlin_perm(hash+zi+dz);
+                hash=perlin_perm(hash+wi+dw);
+                n.hash[dz*2+dw]=static_cast<std::uint8_t>(hash);
+            }
+        }
+    }
+
+    float sample(float x,float y) const {
+        const int xi=static_cast<int>(std::floor(x)), yi=static_cast<int>(std::floor(y));
+        const float xf=x-static_cast<float>(xi), yf=y-static_cast<float>(yi);
+        const float u=perlin_fade(xf), v=perlin_fade(yf);
+        float g[2][2][2][2]{};
+        for(int dx=0;dx<2;++dx) for(int dy=0;dy<2;++dy){
+            const int nx=xi+dx-x0, ny=yi+dy-y0;
+            const Node& n=nodes[static_cast<std::size_t>(ny)*static_cast<std::size_t>(w)+static_cast<std::size_t>(nx)];
+            for(int dz=0;dz<2;++dz) for(int dw=0;dw<2;++dw)
+                g[dx][dy][dz][dw]=perlin_grad4(static_cast<int>(n.hash[dz*2+dw]),
+                    xf-static_cast<float>(dx),yf-static_cast<float>(dy),zf-static_cast<float>(dz),wf-static_cast<float>(dw));
+        }
+        float yz[2][2][2]{};
+        for(int dy=0;dy<2;++dy) for(int dz=0;dz<2;++dz) for(int dw=0;dw<2;++dw)
+            yz[dy][dz][dw]=lerp(g[0][dy][dz][dw],g[1][dy][dz][dw],u);
+        float zw[2][2]{};
+        for(int dz=0;dz<2;++dz) for(int dw=0;dw<2;++dw) zw[dz][dw]=lerp(yz[0][dz][dw],yz[1][dz][dw],v);
+        const float a=lerp(zw[0][0],zw[1][0],fade_z), b=lerp(zw[0][1],zw[1][1],fade_z);
+        return lerp(a,b,fade_w);
+    }
+};
+
+struct CosmicTurbulenceCache {
+    Perlin4SliceCache x[3],y[3];
+    void build(int origin_x,int origin_y,int width,int height,float inv_x,float inv_y,float zx,float wx,float zy,float wy){
+        const float x0=static_cast<float>(origin_x)*inv_x, x1=static_cast<float>(origin_x+width-1)*inv_x;
+        const float y0=static_cast<float>(origin_y)*inv_y, y1=static_cast<float>(origin_y+height-1)*inv_y;
+        float freq=1.0f;
+        for(int o=0;o<3;++o){
+            x[o].build(x0*freq,x1*freq,y0*freq,y1*freq,zx*freq,wx*freq);
+            y[o].build((x0+137.5f)*freq,(x1+137.5f)*freq,(y0+91.3f)*freq,(y1+91.3f)*freq,zy*freq,wy*freq);
+            freq*=2.0f;
+        }
+    }
+    float sample_x(float x0,float y0) const { return (x[0].sample(x0,y0)+0.5f*x[1].sample(x0*2.0f,y0*2.0f)+0.25f*x[2].sample(x0*4.0f,y0*4.0f))/1.75f; }
+    float sample_y(float x0,float y0) const { x0+=137.5f; y0+=91.3f; return (y[0].sample(x0,y0)+0.5f*y[1].sample(x0*2.0f,y0*2.0f)+0.25f*y[2].sample(x0*4.0f,y0*4.0f))/1.75f; }
+};
+
 // Final-stage, channel-weighted grain. Existing independent noise/seed policy is
 // retained; this is not pixel-identical to Cosmic's random pattern. For a premultiplied
 // channel v and alpha a, a*(0.15 + 0.85*clamp(v/a)) is evaluated without division.
@@ -92,6 +216,8 @@ struct CpuRenderWorkspace {
     MipPyramidRGBA pyramid;
     std::vector<float> depth_a;
     std::vector<float> depth_b;
+    std::vector<float> softness_a;
+    std::vector<float> softness_b;
 };
 
 thread_local CpuRenderWorkspace g_workspace;
@@ -132,10 +258,18 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
     const float depth_dir_x = std::cos(depth_a);
     const float depth_dir_y = std::sin(depth_a);
     const float depth_inv_diag = 1.0f / std::max(1.0f, 0.5f * std::sqrt(bw * bw + bh * bh));
-    const float turbulence_sx = std::max(1.0f, q.turbulence_size_x);
-    const float turbulence_sy = std::max(1.0f, q.turbulence_size_y);
-    const float turbulence_evo_x = q.turbulence_evolution * 0.013f;
-    const float turbulence_evo_y = q.turbulence_evolution * 0.017f;
+    const float turbulence_inv_x = 1.0f / (32.0f * std::max(0.1f, q.turbulence_size_x));
+    const float turbulence_inv_y = 1.0f / (32.0f * std::max(0.1f, q.turbulence_size_y));
+    const float turbulence_turns = q.turbulence_evolution / 360.0f;
+    const float turbulence_angle = turbulence_turns * 6.28318530717958647692f;
+    const float turbulence_angle_y = (turbulence_turns + 43.7f) * 6.28318530717958647692f;
+    const float turbulence_zx = 0.5f * std::cos(turbulence_angle);
+    const float turbulence_wx = 0.5f * std::sin(turbulence_angle);
+    const float turbulence_zy = 0.5f * std::cos(turbulence_angle_y);
+    const float turbulence_wy = 0.5f * std::sin(turbulence_angle_y);
+    const float turbulence_pixels = q.turbulence_amount * 100.0f;
+    const float softness_pixels = q.turbulence_softness * 100.0f;
+    const int softness_radius = softness_pixels > 0.5f ? std::max(1, static_cast<int>(std::lround(softness_pixels / 3.0f))) : 0;
     const float grain_size = std::max(0.5f, q.grain_size_px);
     const float glow_threshold_inv = 1.0f / std::max(1e-5f, 1.0f - q.glow_threshold);
     const float glow_spread = std::max(0.35f, 0.45f * q.glow_falloff);
@@ -185,59 +319,91 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
         g_workspace.pyramid.clear();
     }
 
-    // Fused base shading. The destination doubles as the working base image,
-    // eliminating an entire full-resolution scratch buffer.
+    CosmicTurbulenceCache turbulence_cache;
+    if (plan.turbulence) {
+        turbulence_cache.build(img.origin_x,img.origin_y,img.width,img.height,turbulence_inv_x,turbulence_inv_y,
+                               turbulence_zx,turbulence_wx,turbulence_zy,turbulence_wy);
+    }
+
+    // Colorize in layer-space. Cosmic's Turbulence displaces X/Y pixel
+    // coordinates using two independent normalized 4-D Perlin fields before the
+    // directional gradient is evaluated. Amount is in pixels (host percent value),
+    // Size is scaled by 32 pixels per UI unit, Evolution is an angle/turn.
+    const bool softness_active = softness_radius > 0;
+    if (softness_active) {
+        const std::size_t samples=static_cast<std::size_t>(img.width)*static_cast<std::size_t>(img.height)*3u;
+        g_workspace.softness_a.resize(samples);
+        g_workspace.softness_b.resize(samples);
+    }
+    auto& softness_a=g_workspace.softness_a;
+    auto& softness_b=g_workspace.softness_b;
     parallel_rows(0, img.height, [&](int y0, int y1) {
         for (int y = y0; y < y1; ++y) {
             const float* src = img.src_rgba + static_cast<std::size_t>(y) * static_cast<std::size_t>(img.stride_floats);
             float* dst = img.dst_rgba + static_cast<std::size_t>(y) * static_cast<std::size_t>(img.stride_floats);
             for (int x = 0; x < img.width; ++x) {
                 const float alpha = clamp01(src[x * 4 + 3]);
-                // Base samples use the pixel origin (x/width, y/height), not pixel centers.
-                // Depth retains its independent center definition.
-                const float nx = (static_cast<float>(x) - cx - 0.5f) / bw;
-                const float ny = (static_cast<float>(y) - cy - 0.5f) / bh;
-                float u = (nx * dir_x + ny * dir_y) * q.cycles + 0.5f + q.offset + q.phase_deg / 360.0f;
-
+                float px=static_cast<float>(x), py=static_cast<float>(y);
                 if (plan.turbulence) {
-                    const float layer_x = static_cast<float>(img.origin_x + x);
-                    const float layer_y = static_cast<float>(img.origin_y + y);
-                    u += fbm(layer_x / turbulence_sx + turbulence_evo_x,
-                             layer_y / turbulence_sy + turbulence_evo_y,
-                             q.turbulence_softness,
-                             0x6d2b79f5u) * q.turbulence_amount;
+                    const float layer_x=static_cast<float>(img.origin_x+x), layer_y=static_cast<float>(img.origin_y+y);
+                    const float nx4=layer_x*turbulence_inv_x;
+                    const float ny4=layer_y*turbulence_inv_y;
+                    const float dx=turbulence_cache.sample_x(nx4,ny4);
+                    const float dy=turbulence_cache.sample_y(nx4,ny4);
+                    px += dx*turbulence_pixels;
+                    py += dy*turbulence_pixels;
                 }
-
+                const float nx=(px-cx-0.5f)/bw, ny=(py-cy-0.5f)/bh;
+                float u=(nx*dir_x+ny*dir_y)*q.cycles+0.5f+q.offset+q.phase_deg/360.0f;
                 if (depth_active) {
-                    const float depth = depth_map[static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)];
-                    u += depth * q.bulge;
+                    const float depth=depth_map[static_cast<std::size_t>(y)*static_cast<std::size_t>(img.width)+static_cast<std::size_t>(x)];
+                    u += depth*q.bulge;
                 }
-
-                const Color3f c = adjust_sat_brightness(sample_palette(q.colors, u), q.saturation, q.brightness);
-
-                const float r = c.r * alpha;
-                const float g = c.g * alpha;
-                const float bl = c.b * alpha;
-                dst[x * 4 + 0] = r;
-                dst[x * 4 + 1] = g;
-                dst[x * 4 + 2] = bl;
-                dst[x * 4 + 3] = alpha;
-                if (plan.grain && !plan.glow && !plan.diffusion) {
-                    finish_grain(dst + x * 4, img.origin_x + x, img.origin_y + y, q, grain_size, seed);
-                }
-
-                if (plan.glow) {
-                    const float lum = r * 0.2126f + g * 0.7152f + bl * 0.0722f;
-                    const float k = clamp01((lum - q.glow_threshold) * glow_threshold_inv);
-                    const std::size_t i = (static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width) + static_cast<std::size_t>(x)) * 4u;
-                    glow_source[i + 0] = r * k;
-                    glow_source[i + 1] = g * k;
-                    glow_source[i + 2] = bl * k;
-                    glow_source[i + 3] = alpha * k;
+                const Color3f c=adjust_sat_brightness(sample_palette(q.colors,u),q.saturation,q.brightness);
+                if (softness_active) {
+                    const std::size_t i=(static_cast<std::size_t>(y)*static_cast<std::size_t>(img.width)+static_cast<std::size_t>(x))*3u;
+                    softness_a[i+0]=c.r; softness_a[i+1]=c.g; softness_a[i+2]=c.b;
+                    dst[x*4+3]=alpha; // preserve source alpha; RGB is finalized after Softness.
+                } else {
+                    const float r=c.r*alpha,g=c.g*alpha,bl=c.b*alpha;
+                    dst[x*4+0]=r;dst[x*4+1]=g;dst[x*4+2]=bl;dst[x*4+3]=alpha;
+                    if (plan.grain && !plan.glow && !plan.diffusion) finish_grain(dst+x*4,img.origin_x+x,img.origin_y+y,q,grain_size,seed);
+                    if (plan.glow) {
+                        const float lum=r*.2126f+g*.7152f+bl*.0722f;
+                        const float k=clamp01((lum-q.glow_threshold)*glow_threshold_inv);
+                        const std::size_t gi=(static_cast<std::size_t>(y)*static_cast<std::size_t>(img.width)+static_cast<std::size_t>(x))*4u;
+                        glow_source[gi+0]=r*k;glow_source[gi+1]=g*k;glow_source[gi+2]=bl*k;glow_source[gi+3]=alpha*k;
+                    }
                 }
             }
         }
     });
+    if (softness_active) {
+        // Observable Softness path: three separable box pairs over unpremultiplied
+        // color, then the source alpha mask is applied. UI value 40 => pass radius 13.
+        for(int pass=0;pass<3;++pass){
+            box_blur_rgb_h(softness_a,softness_b,img.width,img.height,softness_radius);
+            box_blur_rgb_v(softness_b,softness_a,img.width,img.height,softness_radius);
+        }
+        parallel_rows(0,img.height,[&](int y0,int y1){
+            for(int y=y0;y<y1;++y){
+                float* dst=img.dst_rgba+static_cast<std::size_t>(y)*static_cast<std::size_t>(img.stride_floats);
+                for(int x=0;x<img.width;++x){
+                    const std::size_t i=(static_cast<std::size_t>(y)*static_cast<std::size_t>(img.width)+static_cast<std::size_t>(x))*3u;
+                    const float alpha=dst[x*4+3];
+                    const float r=softness_a[i+0]*alpha,g=softness_a[i+1]*alpha,bl=softness_a[i+2]*alpha;
+                    dst[x*4+0]=r;dst[x*4+1]=g;dst[x*4+2]=bl;
+                    if(plan.grain&&!plan.glow&&!plan.diffusion) finish_grain(dst+x*4,img.origin_x+x,img.origin_y+y,q,grain_size,seed);
+                    if(plan.glow){
+                        const float lum=r*.2126f+g*.7152f+bl*.0722f;
+                        const float k=clamp01((lum-q.glow_threshold)*glow_threshold_inv);
+                        const std::size_t gi=(static_cast<std::size_t>(y)*static_cast<std::size_t>(img.width)+static_cast<std::size_t>(x))*4u;
+                        glow_source[gi+0]=r*k;glow_source[gi+1]=g*k;glow_source[gi+2]=bl*k;glow_source[gi+3]=alpha*k;
+                    }
+                }
+            }
+        });
+    }
 
     // Glow owns level 0 instead of copying it again. The same pyramid storage is
     // rebuilt for diffusion after glow composition, so the two effects never

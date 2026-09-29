@@ -13,7 +13,7 @@ stellar::Params base_params() {
     p.colors = {{{40.0f/255,13.0f/255,140.0f/255}, {55.0f/255,17.0f/255,191.0f/255},
                  {24.0f/255,14.0f/255,89.0f/255}, {7.0f/255,12.0f/255,38.0f/255},
                  {242.0f/255,75.0f/255,75.0f/255}}};
-    p.bulge = p.turbulence_amount = p.glow_intensity = p.grain_amount = p.diffusion_blur_px = 0;
+    p.bulge = p.turbulence_amount = p.turbulence_softness = p.glow_intensity = p.grain_amount = p.diffusion_blur_px = 0;
     p.quality = stellar::Quality::Final;
     return p;
 }

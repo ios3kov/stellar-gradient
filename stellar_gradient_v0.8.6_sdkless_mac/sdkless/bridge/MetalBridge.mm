@@ -17,6 +17,9 @@ namespace {
 struct SGMetalContext {
     id<MTLComputePipelineState> depth = nil;
     id<MTLComputePipelineState> base = nil;
+    id<MTLComputePipelineState> base_unmasked = nil;
+    id<MTLComputePipelineState> soft_mask = nil;
+    id<MTLComputePipelineState> glow_source = nil;
     id<MTLComputePipelineState> base_out = nil;
     id<MTLComputePipelineState> base_glow = nil;
     id<MTLComputePipelineState> compose_in_place = nil;
@@ -38,6 +41,9 @@ void release_context(SGMetalContext* g) {
     if(!g) return;
     if(g->depth)[g->depth release];
     if(g->base)[g->base release];
+    if(g->base_unmasked)[g->base_unmasked release];
+    if(g->soft_mask)[g->soft_mask release];
+    if(g->glow_source)[g->glow_source release];
     if(g->base_out)[g->base_out release];
     if(g->base_glow)[g->base_glow release];
     if(g->compose_in_place)[g->compose_in_place release];
@@ -102,6 +108,9 @@ void* sg_metal_create(void* mtl_device, int32_t* supports_f32_filtering) {
 
     g->depth=make_pipeline(dev,lib,"SGDepthKernel",&error);
     g->base=make_pipeline(dev,lib,"SGBaseKernel",&error);
+    g->base_unmasked=make_pipeline(dev,lib,"SGBaseUnmaskedKernel",&error);
+    g->soft_mask=make_pipeline(dev,lib,"SGSoftMaskKernel",&error);
+    g->glow_source=make_pipeline(dev,lib,"SGGlowSourceKernel",&error);
     g->base_out=make_pipeline(dev,lib,"SGBaseOutKernel",&error);
     g->base_glow=make_pipeline(dev,lib,"SGBaseGlowKernel",&error);
     g->compose_in_place=make_pipeline(dev,lib,"SGComposeInPlaceKernel",&error);
@@ -109,7 +118,7 @@ void* sg_metal_create(void* mtl_device, int32_t* supports_f32_filtering) {
     g->diffusion_out=make_pipeline(dev,lib,"SGDiffusionOutKernel",&error);
     [lib release];
 
-    if(!g->depth||!g->base||!g->base_out||!g->base_glow||!g->compose_in_place||!g->compose_out||!g->diffusion_out) {
+    if(!g->depth||!g->base||!g->base_unmasked||!g->soft_mask||!g->glow_source||!g->base_out||!g->base_glow||!g->compose_in_place||!g->compose_out||!g->diffusion_out) {
         release_context(g); [pool drain]; return nullptr;
     }
     if(supports_f32_filtering) *supports_f32_filtering=g->supports_f32_filtering?1:0;
@@ -137,7 +146,7 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
     SGMetalContext* g=static_cast<SGMetalContext*>(context);
     id<MTLCommandQueue> queue=(id<MTLCommandQueue>)command_queue;
     id<MTLDevice> dev=queue.device;
-    id<MTLTexture> base=nil,glow=nil,depth=nil,depth_tmp=nil;
+    id<MTLTexture> base=nil,soft_tmp=nil,glow=nil,depth=nil,depth_tmp=nil;
     int32_t rc=0;
 
     do {
@@ -148,6 +157,8 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
         stellar::Params p=stellar::sanitized_params(sgbridge::to_cpp_params(state->params));
         const auto plan=stellar::make_render_plan(p,work_w,work_h,stellar::Backend::GPU);
         const auto gp=sgbridge::pack_gpu(*state,work_w,work_h,ow,oh,iw,ih,sp,dp,plan);
+        const float softness_pixels=p.turbulence_softness*100.0f;
+        const int softness_radius=softness_pixels>0.5f?std::max(1,(int)std::lround(softness_pixels/3.0f)):0;
 
         id<MTLCommandBuffer> cb=[queue commandBuffer];
         if(!cb){ rc=-3; break; }
@@ -178,7 +189,7 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
             }
         }
 
-        if(!plan.glow&&!plan.diffusion&&work_w==ow&&work_h==oh&&gp.crop_x==0&&gp.crop_y==0) {
+        if(softness_radius==0&&!plan.glow&&!plan.diffusion&&work_w==ow&&work_h==oh&&gp.crop_x==0&&gp.crop_y==0) {
             id<MTLComputeCommandEncoder> e=[cb computeCommandEncoder]; if(!e){ rc=-3; break; }
             [e setComputePipelineState:g->base_out]; [e setBuffer:src offset:0 atIndex:0]; [e setBuffer:dst offset:0 atIndex:1]; [e setTexture:depth atIndex:0]; [e setBytes:&gp length:sizeof(gp) atIndex:2];
             encode_2d(e,g->base_out,(NSUInteger)ow,(NSUInteger)oh); [e endEncoding]; [cb commit];
@@ -191,7 +202,10 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
         if(plan.glow){ glow=make_texture(dev,work_w,work_h,levels,fmt); if(!glow){ rc=-2; break; } }
 
         id<MTLComputeCommandEncoder> e=[cb computeCommandEncoder]; if(!e){ rc=-3; break; }
-        if(plan.glow) {
+        if(softness_radius>0) {
+            [e setComputePipelineState:g->base_unmasked]; [e setTexture:base atIndex:0]; [e setTexture:depth atIndex:1]; [e setBytes:&gp length:sizeof(gp) atIndex:0];
+            encode_2d(e,g->base_unmasked,(NSUInteger)work_w,(NSUInteger)work_h);
+        } else if(plan.glow) {
             [e setComputePipelineState:g->base_glow]; [e setBuffer:src offset:0 atIndex:0]; [e setTexture:base atIndex:0]; [e setTexture:glow atIndex:1]; [e setTexture:depth atIndex:2]; [e setBytes:&gp length:sizeof(gp) atIndex:1];
             encode_2d(e,g->base_glow,(NSUInteger)work_w,(NSUInteger)work_h);
         } else {
@@ -199,6 +213,26 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
             encode_2d(e,g->base,(NSUInteger)work_w,(NSUInteger)work_h);
         }
         [e endEncoding];
+
+        if(softness_radius>0) {
+            soft_tmp=make_texture(dev,work_w,work_h,plan.diffusion?levels:1,fmt); if(!soft_tmp){ rc=-2; break; }
+            const NSUInteger kernel=(NSUInteger)(softness_radius*2+1);
+            MPSImageBox* box=[[MPSImageBox alloc] initWithDevice:dev kernelWidth:kernel kernelHeight:kernel];
+            box.edgeMode=MPSImageEdgeModeClamp;
+            for(int pass=0;pass<3;++pass){
+                [box encodeToCommandBuffer:cb sourceTexture:base destinationTexture:soft_tmp];
+                id<MTLTexture> swap=base;base=soft_tmp;soft_tmp=swap;
+            }
+            [box release];
+            e=[cb computeCommandEncoder]; if(!e){ rc=-3; break; }
+            [e setComputePipelineState:g->soft_mask]; [e setBuffer:src offset:0 atIndex:0]; [e setTexture:base atIndex:0]; [e setBytes:&gp length:sizeof(gp) atIndex:1];
+            encode_2d(e,g->soft_mask,(NSUInteger)work_w,(NSUInteger)work_h); [e endEncoding];
+            if(plan.glow){
+                e=[cb computeCommandEncoder]; if(!e){ rc=-3; break; }
+                [e setComputePipelineState:g->glow_source]; [e setTexture:base atIndex:0]; [e setTexture:glow atIndex:1]; [e setBytes:&gp length:sizeof(gp) atIndex:0];
+                encode_2d(e,g->glow_source,(NSUInteger)work_w,(NSUInteger)work_h); [e endEncoding];
+            }
+        }
 
         if(plan.glow){ id<MTLBlitCommandEncoder> bl=[cb blitCommandEncoder]; if(!bl){ rc=-3; break; } [bl generateMipmapsForTexture:glow]; [bl endEncoding]; }
         if(plan.diffusion) {
@@ -220,7 +254,7 @@ int32_t sg_metal_render(void* context, void* command_queue, void* input_buffer, 
     } while(false);
 
     if(depth_tmp)[depth_tmp release]; if(depth)[depth release];
-    if(glow)[glow release]; if(base)[base release];
+    if(soft_tmp)[soft_tmp release]; if(glow)[glow release]; if(base)[base release];
     [pool drain];
     return rc;
 }

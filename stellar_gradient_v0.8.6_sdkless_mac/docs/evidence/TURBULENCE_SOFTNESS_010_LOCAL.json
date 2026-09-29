@@ -1,0 +1,86 @@
+{
+  "cpu_cache_output_equivalence": {
+    "status": "PASS",
+    "turbulence_f32_max_abs_vs_uncached": 0.0,
+    "turbulence_size6_f32_max_abs_vs_uncached": 0.0,
+    "turbulence_softness40_f32_max_abs_vs_uncached": 0.0
+  },
+  "date": "2026-09-29",
+  "metrics_codes": {
+    "depth_existing": {
+      "mae": 2.375986347120784,
+      "max": 200.0,
+      "rmse": 9.928321177074114
+    },
+    "depth_softness40_existing": {
+      "mae": 2.8522528474082773,
+      "max": 79.0,
+      "rmse": 7.828893106138595
+    },
+    "turbulence_size3": {
+      "mae": 0.07506942660354045,
+      "max": 4.0,
+      "rmse": 0.323431363252577
+    },
+    "turbulence_size6": {
+      "mae": 0.07391027758407653,
+      "max": 4.0,
+      "rmse": 0.3200424636314682
+    },
+    "turbulence_softness40": {
+      "mae": 0.703138571830538,
+      "max": 29.0,
+      "rmse": 2.5193850900447727
+    }
+  },
+  "performance_sanity": {
+    "baseline": "v0.9.9 exact source",
+    "current": "v0.10.0 local cached CPU",
+    "interpretation": "No speedup claim. Procedural CPU remains slower with exact recovered 4-D turbulence; real AE/Metal profiling remains mandatory.",
+    "median_ms_per_frame": {
+      "1280x720_base": {
+        "baseline": 34.837,
+        "current": 29.758
+      },
+      "1280x720_full": {
+        "baseline": 146.257,
+        "current": 169.447
+      },
+      "1280x720_procedural": {
+        "baseline": 58.992,
+        "current": 116.638
+      },
+      "640x360_base": {
+        "baseline": 6.122,
+        "current": 6.572
+      },
+      "640x360_full": {
+        "baseline": 69.843,
+        "current": 51.208
+      },
+      "640x360_procedural": {
+        "baseline": 20.291,
+        "current": 26.726
+      }
+    },
+    "scope": "3 process samples, warmed core_bench; sandbox Linux x86_64; not AE profiling",
+    "status": "RISK_RECORDED"
+  },
+  "real_ae_status": "NOT_RUN",
+  "real_gpu_status": "NOT_RUN",
+  "reference_archive_sha256": "31dd998ea2f83854280a81d80217bfa115744c06a78ba4f60334a7486feed006",
+  "reference_png_sha256": {
+    "cosmic_base": "d2618b36a2f3421cacd06c60b6d7ca5c5226fbe91dcd809bd2384fd906ba7d52",
+    "cosmic_depth": "645605e2f94ca4fa3acf09c1b26acb9318a71421da6d200e815833e9ee5c5a8e",
+    "cosmic_depth_softness": "6cbe4a96b7f10e7bd48672db1e731dcbd581daa8ab3f78452f155b9941a2eb9a",
+    "cosmic_turbulence": "4c2154486cfea8d01b6d79a9434567cc5756e1e55f8bdaa991f0209d2a689dac",
+    "cosmic_turbulence_size6": "154a83a90e5b6cff4d2d3c8567e98fa0d6a59fb9bf66f71f3547b8c1a858ed40",
+    "cosmic_turbulence_softness": "2477b96ad4eb43b5a31ea501c2cd33e65cadf8a06934fc7a534fd9b70b3f2d4c"
+  },
+  "reference_run": "Stellar-Isolate-1790622394083-275372080",
+  "release_status": "NOT_APPROVED",
+  "rules_blob": "701a8c1ae3acb4dbfe1d7eda94acbf8095b88608",
+  "schema": 1,
+  "scope": "local CPU float replay projected to retained RGB8/sRGB output; red overlay + 3px excluded; not AE/GPU evidence",
+  "status": "LOCAL_REFERENCE_PASS"
+}

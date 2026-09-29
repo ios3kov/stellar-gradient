@@ -57,6 +57,13 @@ checks['native depth angle'] = all(x in host for x in [
     'Params::DepthAngle,"Angle",ae::AngleDef::setup',
     'p.depth_angle_deg=params.get(Params::DepthAngle)?.as_angle()?.float_value()',
 ])
+checks['Cosmic Depth/Turbulence/Softness hierarchy'] = (
+    host.index('add_group(params,Params::DepthTopic') <
+    host.index('add_group(params,Params::TurbTopic') <
+    host.index('add_group(params,Params::TurbEnd') <
+    host.index('Params::TurbSoftness,"Softness"') <
+    host.index('add_group(params,Params::DepthEnd')
+)
 
 failed=[k for k,v in checks.items() if not v]
 for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
