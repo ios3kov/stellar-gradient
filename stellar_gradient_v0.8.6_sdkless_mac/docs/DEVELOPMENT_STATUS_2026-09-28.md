@@ -94,3 +94,17 @@ Earlier reports are historical. The previous v0.9.8 checkpoint remains in Git
 at `79e17721e612bd3c3d7aae457019256b4444c7c6`. This record supersedes only the
 Metal-validation and build status for the exact candidate named above. Later
 PR-merge or documentation-triggered artifacts must not silently substitute for it.
+
+## v0.10.0 Turbulence + Softness native checkpoint — 2026-09-29
+
+Native behavior commit: `16cfa398e7b0f1dd2701e3c8c40ba42e8bb42857`.
+Governing rules re-read at blob `701a8c1ae3acb4dbfe1d7eda94acbf8095b88608`.
+The fixed v0.10.0 patch passed its atomic apply/Level-1 workflow after the source-freeze manifest was regenerated from the exact post-patch inventory. The first attempt failed only at stale freeze hashes and is retained as historical FAIL evidence; it was not relabelled PASS.
+
+Scope of the native commit: recovered 4-D Turbulence contract on CPU+Metal, corrected Size/Evolution/Amount mapping, Softness as a separate post-color smoothing stage, matching parameter hierarchy, dedicated Turbulence/Softness tests, regenerated Metal source, version 0.10.0, and updated frozen-source manifest. Retained base, Grain and Metal-buffer hardening remain in scope.
+
+Local/reference evidence recorded by the commit reports RGB8 projected comparison against the retained real-AE Cosmic captures: Turbulence Size 3 MAE 0.0751 codes, Size 6 MAE 0.0739, Turbulence+Softness 40 MAE 0.7031. These are local CPU/reference projections, not a real AE/GPU PASS. Procedural CPU performance remains a recorded risk.
+
+The native commit was created by the validation workflow bot, so GitHub marked its PR-triggered workflows `action_required` before any jobs existed. This documentation-only commit intentionally retriggers PR CI under the repository user without changing native source. The tested artifact identity must therefore use the exact CI head/build ID produced by the retriggered run; the native behavior delta remains exactly commit `16cfa398...`.
+
+Release remains NOT APPROVED until Regression Level 2 real-AE checks pass on the exact built artifact.
