@@ -1,5 +1,7 @@
 # Mac installation investigation — 2026-09-28
 
+> **Current target — 2026-10-01:** the investigation below is historical v0.9.6 evidence. Current v0.10 Validation uses `validation_target_v010.json` and `Stellar_Mac_Check.command` 1.1, targeting native commit `9f3e73bc92534941db1106f521786d8c3c792347`, artifact **11187002476**. Do not reuse the historical hashes as current-candidate identity.
+
 ## Observed baseline (not an inferred installation state)
 
 The user's actual AE report is now available. SHA-256 of the supplied report.json:
