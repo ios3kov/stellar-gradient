@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "date": "2026-10-01",
+  "purpose": "Exact Stellar Gradient v0.10.0 Validation target. This is not release approval.",
+  "version": "0.10.0",
+  "native_commit": "9f3e73bc92534941db1106f521786d8c3c792347",
+  "build_id": "sg-0.10.0-9f3e73bc9253-clean-bc5efe6bf48a-aarch64-apple-darwin-36911997718.1",
+  "mac_ci_run": 36911997718,
+  "artifact_id": 11187002476,
+  "artifact_digest_sha256": "28ec6077bd5ed0019679d7a7d68e56083e2f4a0e4241020fbf60f2bafc8528b1",
+  "plugin_zip_sha256": "4195641fe2b2a79e528cd1a80b3a10f33b278b3789fface7d71a80370a0e1c30",
+  "release_status": "NOT_APPROVED_AE_GATES_PENDING",
+  "architecture": "arm64",
+  "source_sha256": "bc5efe6bf48a18cd692ce5e5022fee84cf953ccc3821a35e18b1d3e33985cb35",
+  "rules_version": "4.0.0",
+  "rules_commit": "58d14aa12375757f4e52396d951f1557ae4f453c",
+  "ai_entrypoint_blob": "29cb44eb7f2a4e0f7c120a97ae434dbb7e58174e",
+  "reference_specification": "stellar_gradient_v0.8.6_sdkless_mac/docs/REFERENCE_SPECIFICATION_COSMIC_V4.md",
+  "reference_audit_status": "PARTIAL"
+}
