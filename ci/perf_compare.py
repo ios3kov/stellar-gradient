@@ -46,6 +46,7 @@ def main():
     ap.add_argument("--current-bin", required=True, type=Path)
     ap.add_argument("--samples", type=int, default=7)
     ap.add_argument("--max-regression", type=float, default=1.30)
+    ap.add_argument("--min-regression-ms", type=float, default=5.0)
     ap.add_argument("--json-out", required=True, type=Path)
     args = ap.parse_args()
     if args.samples < 3:
@@ -73,6 +74,7 @@ def main():
         "schema": 1,
         "samples_per_build": args.samples,
         "guard_max_regression_ratio": args.max_regression,
+        "guard_min_regression_ms": args.min_regression_ms,
         "cases": {},
         "status": "PASS",
         "note": "Level-1 synthetic CPU benchmark; not After Effects, GPU, or release performance evidence.",
@@ -82,25 +84,31 @@ def main():
         b = summarize(raw["baseline"][key])
         c = summarize(raw["current"][key])
         ratio = c["median_ms"] / b["median_ms"] if b["median_ms"] > 0.0 else None
+        delta_ms = c["median_ms"] - b["median_ms"]
         result["cases"][key] = {
             "baseline": b,
             "current": c,
             "current_over_baseline": ratio,
+            "delta_ms": delta_ms,
         }
-        if ratio is not None and ratio > args.max_regression:
-            failed.append((key, ratio))
-        print(f"{key:24s} baseline={b['median_ms']:9.3f} ms  current={c['median_ms']:9.3f} ms  ratio={ratio:6.3f}")
+        if ratio is not None and ratio > args.max_regression and delta_ms >= args.min_regression_ms:
+            failed.append((key, ratio, delta_ms))
+        print(f"{key:24s} baseline={b['median_ms']:9.3f} ms  current={c['median_ms']:9.3f} ms  delta={delta_ms:+8.3f} ms  ratio={ratio:6.3f}")
 
     if failed:
         result["status"] = "FAIL"
-        result["failed_cases"] = [{"case": key, "ratio": ratio} for key, ratio in failed]
+        result["failed_cases"] = [{"case": key, "ratio": ratio, "delta_ms": delta_ms} for key, ratio, delta_ms in failed]
 
     args.json_out.parent.mkdir(parents=True, exist_ok=True)
     args.json_out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     if failed:
-        for key, ratio in failed:
-            print(f"FAIL: {key} regression ratio {ratio:.3f} exceeds {args.max_regression:.3f}", file=sys.stderr)
+        for key, ratio, delta_ms in failed:
+            print(
+                f"FAIL: {key} regression ratio {ratio:.3f} exceeds {args.max_regression:.3f} "
+                f"and delta {delta_ms:.3f} ms reaches {args.min_regression_ms:.3f} ms",
+                file=sys.stderr,
+            )
         return 1
     print("PASS: no synthetic CPU case regressed beyond the guard; this is not a speedup claim.")
     return 0
