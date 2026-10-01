@@ -2,7 +2,7 @@
 
 Date: 2026-09-28. Baseline: `7bdbc611c52f0ace7a465bd555b534e40b4405f3` (v0.9.5). Work branch: `fix/stellar-release-gate`. Main and the separate Hot Loader branches are not changed by this work.
 
-Governing rules: https://github.com/ios3kov/FSTR-Line/blob/main/DEVELOPMENT_RULES.md, reviewed blob `a1760fde8763f789b50b91c20407938b4fcaea4a`.
+Current governing process routing was re-read on 2026-10-01 from https://github.com/ios3kov/AE-Development-Rules at v3.1.1 commit `09f04464e932dd02a3657db34e5e70f097d69b9d`; `AI_ENTRYPOINT.md` blob `6749afebd8b4c52696e5d509b2f6ea9e188fc198`. The existing product contract is retained and the current Delivery Gate is Validation, not Release.
 
 ## Acceptance fixed before implementation
 
@@ -44,6 +44,8 @@ Research: use GitHub's native job dependencies and immutable artifacts rather th
 | Final delivery | BLOCKED | All mandatory gates PASS for unchanged candidate |
 
 Historical reports remain historical. A successful code-side CI run must not be described as release approval.
+
+Current v0.10.0 native code checkpoint `9f3e73bc92534941db1106f521786d8c3c792347` has Mac CI 8/8 PASS in run `36911997718`, but this closes only the code-side Level-1 gate. The real-AE rows above remain NOT RUN/BLOCKED until the exact artifact `11187002476` is exercised in After Effects.
 
 
 ## v0.9.6 identity implementation

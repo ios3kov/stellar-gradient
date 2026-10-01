@@ -1,7 +1,7 @@
 # v0.10.0 — Turbulence + Softness correction
 
-Date: 2026-09-29. Governing rules re-read at blob `701a8c1ae3acb4dbfe1d7eda94acbf8095b88608`.
-This is a development checkpoint, not release approval. Main and Hot Loader remain out of scope.
+Date: 2026-09-29. Original correction checkpoint used the then-current rules blob `701a8c1ae3acb4dbfe1d7eda94acbf8095b88608`. Continuation on 2026-10-01 was re-routed through `ios3kov/AE-Development-Rules` v3.1.1 commit `09f04464e932dd02a3657db34e5e70f097d69b9d`, `AI_ENTRYPOINT.md` blob `6749afebd8b4c52696e5d509b2f6ea9e188fc198`.
+This remains a Validation checkpoint, not release approval. Main and Hot Loader remain out of scope.
 
 ## Baseline / evidence
 
@@ -32,7 +32,9 @@ Using the same RGB8/sRGB projection previously validated against the installed S
 
 These are local CPU/output-projection measurements, **not real AE or executed Metal evidence**. They do not certify full presets, HDR, alpha through the host, or GPU dispatch.
 
-A CPU lattice-hash cache preserves the compared F32 outputs bit-for-bit while avoiding repeated permutation walks. Short warmed sandbox timing remains mixed: base/full cases are near the prior range, but the isolated 1280×720 procedural case is still substantially slower than v0.9.9 because the corrected reference uses two 4-D fields × three octaves. This is recorded as a performance risk, not hidden or called a speedup; final performance acceptance requires real AE/Metal profiling.
+The original lattice-hash cache remains, and commit `9f3e73bc92534941db1106f521786d8c3c792347` additionally precomputes X/Y lattice index, fractional coordinate and fade for the regular render grid. Metal is unchanged. A direct renderer-versus-uncached-`cosmic_fbm4` regression protects the field contract; strict core tests are 11/11 PASS and ASan+UBSan/TSan are PASS.
+
+Performance is measured against the correct v0.10.0 behavior baseline `16cfa398e7b0f1dd2701e3c8c40ba42e8bb42857` on the same `macos-15` runner, with alternating baseline/current execution and 11 paired samples per measurement. Three completed paired measurements (push attempt 1, PR attempt 1, push attempt 2) all measured the 1280×720 procedural case faster: paired ratios 0.969, 0.915 and 0.837. Their median is 0.915; normalized by the unchanged 1280×720 base-path control in each measurement, the median is about 0.940. Hosted-runner variance is visibly material, so this is only evidence of a repeatable Level-1 CPU improvement direction, not a production or real-AE speed claim. Final performance acceptance still requires real After Effects/Metal profiling.
 
 ## Acceptance for this commit
 

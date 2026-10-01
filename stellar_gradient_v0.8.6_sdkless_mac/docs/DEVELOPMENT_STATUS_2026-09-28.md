@@ -1,5 +1,7 @@
 # Stellar Gradient — verified checkpoint, 2026-09-28
 
+> Current continuation, 2026-10-01: v0.10.0 remains a **Validation candidate, not a release**. The latest native CPU performance commit is `9f3e73bc92534941db1106f521786d8c3c792347`; exact code-side Mac CI run `36911997718` is 8/8 PASS. Later branch commits through `59448db5a1f004cab9cc443106585913d4c27200` are performance tooling only. The historical v0.9.9 record below is retained as history; current v0.10 evidence is appended at the end.
+
 **v0.9.9 is an internal candidate, not a release.** Work branch:
 `fix/stellar-release-gate`, draft PR #1. Main and Hot Loader are unchanged.
 The user retains v0.9.6; no new user installation or AE/GPU execution took place.
@@ -108,3 +110,31 @@ Local/reference evidence recorded by the commit reports RGB8 projected compariso
 The native commit was created by the validation workflow bot, so GitHub marked its PR-triggered workflows `action_required` before any jobs existed. This documentation-only commit intentionally retriggers PR CI under the repository user without changing native source. The tested artifact identity must therefore use the exact CI head/build ID produced by the retriggered run; the native behavior delta remains exactly commit `16cfa398...`.
 
 Release remains NOT APPROVED until Regression Level 2 real-AE checks pass on the exact built artifact.
+
+## v0.10.0 CPU Turbulence performance checkpoint — 2026-10-01
+
+Current process routing was re-read from `ios3kov/AE-Development-Rules` v3.1.1 commit `09f04464e932dd02a3657db34e5e70f097d69b9d`, with `AI_ENTRYPOINT.md` blob `6749afebd8b4c52696e5d509b2f6ea9e188fc198`. This is an existing native effect in **Validation**; Stage 0/Product Discovery and Release Delivery are not entered.
+
+The correct visual/math baseline remains v0.10.0 commit `16cfa398e7b0f1dd2701e3c8c40ba42e8bb42857`. Commit `9f3e73bc92534941db1106f521786d8c3c792347` optimizes only the CPU Turbulence path by precomputing regular-grid axis state. Metal is unchanged. A direct cached-renderer versus uncached `cosmic_fbm4` test was added. Strict core is **11/11 PASS**; ASan+UBSan and TSan are PASS.
+
+Exact native-code Mac CI run `36911997718`: **8/8 jobs PASS**. Exact ARM64 artifact:
+- Artifact ID: **11187002476**
+- Artifact digest: `sha256:28ec6077bd5ed0019679d7a7d68e56083e2f4a0e4241020fbf60f2bafc8528b1`
+- Plugin ZIP SHA-256: `4195641fe2b2a79e528cd1a80b3a10f33b278b3789fface7d71a80370a0e1c30`
+- Build ID: `sg-0.10.0-9f3e73bc9253-clean-bc5efe6bf48a-aarch64-apple-darwin-36911997718.1`
+- Source SHA-256: `bc5efe6bf48a18cd692ce5e5022fee84cf953ccc3821a35e18b1d3e33985cb35`
+- Manifest release status: `NOT_APPROVED_AE_GATES_PENDING`
+
+Performance instrumentation was added after the native change: `f488138` fixed the correct v0.10 baseline, `cc21f1e` added an absolute jitter floor, and `59448db` switched the gate to 11 paired baseline/current samples. These tooling commits do not change the native renderer.
+
+Three completed paired measurements all show the 1280×720 procedural case faster than `16cfa398`:
+- run `36912426549`, attempt 1: ratio **0.969**, delta **-3.311 ms**
+- run `36912434745`, attempt 1: ratio **0.915**, delta **-14.318 ms**
+- run `36912426549`, attempt 2: ratio **0.837**, delta **-19.610 ms**
+
+Median raw paired ratio is **0.915**. Normalizing each procedural ratio by its unchanged 1280×720 base-path ratio gives approximately 0.919, 0.955 and 0.940; median approximately **0.940**. Because the hosted runner shows substantial timing variance, this is Level-1 synthetic CPU evidence only. It does **not** certify real After Effects or Metal performance.
+
+Machine-readable record: [CPU_TURBULENCE_PERF_010_CI.json](evidence/CPU_TURBULENCE_PERF_010_CI.json).
+
+Regression Level 2 is still **BLOCKED / NOT RUN** for this exact artifact: actual AE load and runtime identity, executed CPU/GPU numerical parity, 8/16/32 bpc and alpha/HDR/color-management paths, restart/Undo/Redo/save-reopen/migration, MFR/render queue/noninteractive paths, and real-host profiling. No merge, release or public delivery is approved by this checkpoint.
+
