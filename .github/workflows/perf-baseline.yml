@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 ci/perf_compare.py             --baseline-bin "$RUNNER_TEMP/stellar-v010-baseline/build-perf/stellar_bench"             --current-bin "build-perf-current/stellar_bench"             --samples 7             --max-regression 1.30             --min-regression-ms 5.0             --json-out perf-evidence/cpu-performance.json | tee perf-evidence/cpu-performance.log
+          python3 ci/perf_compare.py             --baseline-bin "$RUNNER_TEMP/stellar-v010-baseline/build-perf/stellar_bench"             --current-bin "build-perf-current/stellar_bench"             --samples 11             --max-regression 1.30             --min-regression-ms 5.0             --json-out perf-evidence/cpu-performance.json | tee perf-evidence/cpu-performance.log
 
       - uses: actions/upload-artifact@v4
         if: always()

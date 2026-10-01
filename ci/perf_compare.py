@@ -44,7 +44,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--baseline-bin", required=True, type=Path)
     ap.add_argument("--current-bin", required=True, type=Path)
-    ap.add_argument("--samples", type=int, default=7)
+    ap.add_argument("--samples", type=int, default=11)
     ap.add_argument("--max-regression", type=float, default=1.30)
     ap.add_argument("--min-regression-ms", type=float, default=5.0)
     ap.add_argument("--json-out", required=True, type=Path)
@@ -71,7 +71,7 @@ def main():
                 raw[label][key].append(value)
 
     result = {
-        "schema": 1,
+        "schema": 2,
         "samples_per_build": args.samples,
         "guard_max_regression_ratio": args.max_regression,
         "guard_min_regression_ms": args.min_regression_ms,
@@ -85,15 +85,33 @@ def main():
         c = summarize(raw["current"][key])
         ratio = c["median_ms"] / b["median_ms"] if b["median_ms"] > 0.0 else None
         delta_ms = c["median_ms"] - b["median_ms"]
+        paired_ratios = [
+            current / baseline
+            for baseline, current in zip(raw["baseline"][key], raw["current"][key])
+            if baseline > 0.0
+        ]
+        paired_deltas = [
+            current - baseline
+            for baseline, current in zip(raw["baseline"][key], raw["current"][key])
+        ]
+        paired_ratio = statistics.median(paired_ratios)
+        paired_delta_ms = statistics.median(paired_deltas)
         result["cases"][key] = {
             "baseline": b,
             "current": c,
             "current_over_baseline": ratio,
             "delta_ms": delta_ms,
+            "paired_median_ratio": paired_ratio,
+            "paired_median_delta_ms": paired_delta_ms,
+            "paired_ratios": paired_ratios,
+            "paired_deltas_ms": paired_deltas,
         }
-        if ratio is not None and ratio > args.max_regression and delta_ms >= args.min_regression_ms:
-            failed.append((key, ratio, delta_ms))
-        print(f"{key:24s} baseline={b['median_ms']:9.3f} ms  current={c['median_ms']:9.3f} ms  delta={delta_ms:+8.3f} ms  ratio={ratio:6.3f}")
+        if paired_ratio > args.max_regression and paired_delta_ms >= args.min_regression_ms:
+            failed.append((key, paired_ratio, paired_delta_ms))
+        print(
+            f"{key:24s} baseline={b['median_ms']:9.3f} ms  current={c['median_ms']:9.3f} ms  "
+            f"paired_delta={paired_delta_ms:+8.3f} ms  paired_ratio={paired_ratio:6.3f}"
+        )
 
     if failed:
         result["status"] = "FAIL"
@@ -110,7 +128,7 @@ def main():
                 file=sys.stderr,
             )
         return 1
-    print("PASS: no synthetic CPU case regressed beyond the guard; this is not a speedup claim.")
+    print("PASS: no paired synthetic CPU case regressed beyond the guard; this is not a speedup claim.")
     return 0
 
 if __name__ == "__main__":
