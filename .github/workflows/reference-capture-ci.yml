@@ -6,6 +6,10 @@ on:
       - diagnostics/Stellar_Cosmic_Compare.jsx
       - diagnostics/test_compare.cjs
       - diagnostics/test_runner_v1_1.cjs
+      - diagnostics/validation_target_v010.json
+      - diagnostics/test_target_identity.py
+      - diagnostics/Stellar_AE_Diagnostics_v1_3.jsx
+      - diagnostics/Stellar_Mac_Check.command
       - .github/workflows/reference-capture-ci.yml
   pull_request:
     branches: [main]
@@ -13,6 +17,10 @@ on:
       - diagnostics/Stellar_Cosmic_Compare.jsx
       - diagnostics/test_compare.cjs
       - diagnostics/test_runner_v1_1.cjs
+      - diagnostics/validation_target_v010.json
+      - diagnostics/test_target_identity.py
+      - diagnostics/Stellar_AE_Diagnostics_v1_3.jsx
+      - diagnostics/Stellar_Mac_Check.command
       - .github/workflows/reference-capture-ci.yml
 permissions:
   contents: read
@@ -32,5 +40,6 @@ jobs:
         run: |
           node diagnostics/test_compare.cjs
           node diagnostics/test_runner_v1_2.cjs
+          python3 diagnostics/test_target_identity.py
       - name: Record exact handoff identity
-        run: sha256sum diagnostics/Stellar_Cosmic_Compare.jsx
+        run: sha256sum diagnostics/Stellar_Cosmic_Compare.jsx diagnostics/validation_target_v010.json

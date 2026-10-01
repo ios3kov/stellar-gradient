@@ -6,6 +6,10 @@ on:
       - diagnostics/Stellar_Mac_Check.command
       - diagnostics/test_mac_check.py
       - diagnostics/test_mac_report_write.py
+      - diagnostics/validation_target_v010.json
+      - diagnostics/test_target_identity.py
+      - diagnostics/Stellar_AE_Diagnostics_v1_3.jsx
+      - diagnostics/Stellar_Cosmic_Compare.jsx
       - .github/workflows/mac-install-check.yml
   pull_request:
     branches: [main]
@@ -36,5 +40,6 @@ jobs:
           /bin/bash -n diagnostics/Stellar_Mac_Check.command
           python3 diagnostics/test_mac_check.py
           python3 diagnostics/test_mac_report_write.py
+          python3 diagnostics/test_target_identity.py
       - name: Record diagnostic file identity
         run: shasum -a 256 diagnostics/Stellar_Mac_Check.command
