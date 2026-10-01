@@ -2,7 +2,7 @@
 
 Date: 2026-09-28. Baseline: `7bdbc611c52f0ace7a465bd555b534e40b4405f3` (v0.9.5). Work branch: `fix/stellar-release-gate`. Main and the separate Hot Loader branches are not changed by this work.
 
-Current governing process routing was re-read on 2026-10-01 from https://github.com/ios3kov/AE-Development-Rules at v3.1.1 commit `09f04464e932dd02a3657db34e5e70f097d69b9d`; `AI_ENTRYPOINT.md` blob `6749afebd8b4c52696e5d509b2f6ea9e188fc198`. The existing product contract is retained and the current Delivery Gate is Validation, not Release.
+Current governing process is https://github.com/ios3kov/AE-Development-Rules **v4.0.0**, commit `58d14aa12375757f4e52396d951f1557ae4f453c`; `AI_ENTRYPOINT.md` blob `29cb44eb7f2a4e0f7c120a97ae434dbb7e58174e`. Cosmic is the explicit whole-product parity target, so `REFERENCE_SPECIFICATION_COSMIC_V4.md` and its PARTIAL Reference Coverage Map apply. The existing product contract is retained and the current Delivery Gate is Validation, not Release.
 
 ## Acceptance fixed before implementation
 

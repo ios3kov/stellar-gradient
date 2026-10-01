@@ -85,5 +85,14 @@
     "restart, Undo/Redo, save/reopen/migration",
     "MFR, render queue and applicable noninteractive paths",
     "real-host CPU/Metal profiling"
-  ]
+  ],
+  "current_standard_after_migration": {
+    "repository": "ios3kov/AE-Development-Rules",
+    "version": "4.0.0",
+    "commit": "58d14aa12375757f4e52396d951f1557ae4f453c",
+    "ai_entrypoint_blob": "29cb44eb7f2a4e0f7c120a97ae434dbb7e58174e",
+    "reference_audit_status": "PARTIAL",
+    "reference_specification": "../REFERENCE_SPECIFICATION_COSMIC_V4.md",
+    "note": "The governing_rules field above records the standard current when the performance evidence was first captured; it is intentionally preserved as historical provenance."
+  }
 }

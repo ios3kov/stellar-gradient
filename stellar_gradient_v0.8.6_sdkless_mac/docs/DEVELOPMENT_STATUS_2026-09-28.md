@@ -1,6 +1,6 @@
 # Stellar Gradient — verified checkpoint, 2026-09-28
 
-> Current continuation, 2026-10-01: v0.10.0 remains a **Validation candidate, not a release**. The latest native CPU performance commit is `9f3e73bc92534941db1106f521786d8c3c792347`; exact code-side Mac CI run `36911997718` is 8/8 PASS. Later branch commits through `59448db5a1f004cab9cc443106585913d4c27200` are performance tooling only. The historical v0.9.9 record below is retained as history; current v0.10 evidence is appended at the end.
+> Current continuation, 2026-10-01: v0.10.0 remains a **Validation candidate, not a release**. The latest native-code commit is `9f3e73bc92534941db1106f521786d8c3c792347`; exact code-side Mac CI run `36911997718` is 8/8 PASS. Later branch commits are measurement, Reference-Audit, diagnostic and documentation work; they do not replace the exact native artifact. The historical v0.9.9 record below is retained as history; current v0.10 evidence is appended at the end.
 
 **v0.9.9 is an internal candidate, not a release.** Work branch:
 `fix/stellar-release-gate`, draft PR #1. Main and Hot Loader are unchanged.
@@ -113,7 +113,7 @@ Release remains NOT APPROVED until Regression Level 2 real-AE checks pass on the
 
 ## v0.10.0 CPU Turbulence performance checkpoint — 2026-10-01
 
-Current process routing was re-read from `ios3kov/AE-Development-Rules` v3.1.1 commit `09f04464e932dd02a3657db34e5e70f097d69b9d`, with `AI_ENTRYPOINT.md` blob `6749afebd8b4c52696e5d509b2f6ea9e188fc198`. This is an existing native effect in **Validation**; Stage 0/Product Discovery and Release Delivery are not entered.
+This performance evidence was originally recorded while AE Development Rules v3.1.1 was current. On the same date the project migrated to **v4.0.0** commit `58d14aa12375757f4e52396d951f1557ae4f453c`, `AI_ENTRYPOINT.md` blob `29cb44eb7f2a4e0f7c120a97ae434dbb7e58174e`. Stellar remains an existing native effect in **Validation**; Cosmic now explicitly triggers the whole-product Reference Audit recorded in `REFERENCE_SPECIFICATION_COSMIC_V4.md` (PARTIAL).
 
 The correct visual/math baseline remains v0.10.0 commit `16cfa398e7b0f1dd2701e3c8c40ba42e8bb42857`. Commit `9f3e73bc92534941db1106f521786d8c3c792347` optimizes only the CPU Turbulence path by precomputing regular-grid axis state. Metal is unchanged. A direct cached-renderer versus uncached `cosmic_fbm4` test was added. Strict core is **11/11 PASS**; ASan+UBSan and TSan are PASS.
 
