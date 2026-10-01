@@ -1,0 +1,84 @@
+name: CPU performance baseline
+
+on:
+  push:
+    branches: [fix/stellar-release-gate]
+    paths:
+      - ".github/workflows/perf-baseline.yml"
+      - "ci/perf_compare.py"
+      - "stellar_gradient_v0.8.6_sdkless_mac/CMakeLists.txt"
+      - "stellar_gradient_v0.8.6_sdkless_mac/src/core/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/src/cpu/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/tests/core_bench.cpp"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/perf-baseline.yml"
+      - "ci/perf_compare.py"
+      - "stellar_gradient_v0.8.6_sdkless_mac/CMakeLists.txt"
+      - "stellar_gradient_v0.8.6_sdkless_mac/src/core/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/src/cpu/**"
+      - "stellar_gradient_v0.8.6_sdkless_mac/tests/core_bench.cpp"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SRC: stellar_gradient_v0.8.6_sdkless_mac
+  BASELINE_SHA: 16cfa398e7b0f1dd2701e3c8c40ba42e8bb42857
+
+jobs:
+  compare-cpu:
+    name: v0.10 CPU before/current
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Record benchmark environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p perf-evidence
+          {
+            echo "current_sha=$GITHUB_SHA"
+            echo "baseline_sha=$BASELINE_SHA"
+            sw_vers
+            uname -a
+            xcrun clang++ --version
+            sysctl -n hw.model || true
+            sysctl -n hw.ncpu || true
+            sysctl -n hw.memsize || true
+          } | tee perf-evidence/environment.txt
+
+      - name: Build fixed v0.10 baseline and current head
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$RUNNER_TEMP/stellar-v010-baseline"
+          git worktree add --detach "$BASE" "$BASELINE_SHA"
+          FLAGS="-O3 -DNDEBUG -fno-fast-math -ffp-contract=off"
+          cmake -S "$BASE/$SRC" -B "$BASE/build-perf" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE="$FLAGS"
+          cmake --build "$BASE/build-perf" --target stellar_bench -j 3
+          cmake -S "$SRC" -B build-perf-current -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE="$FLAGS"
+          cmake --build build-perf-current --target stellar_bench -j 3
+
+      - name: Compare synthetic CPU render timings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/perf_compare.py             --baseline-bin "$RUNNER_TEMP/stellar-v010-baseline/build-perf/stellar_bench"             --current-bin "build-perf-current/stellar_bench"             --samples 7             --max-regression 1.30             --json-out perf-evidence/cpu-performance.json | tee perf-evidence/cpu-performance.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: StellarGradient-cpu-perf-${{ github.run_id }}-${{ github.run_attempt }}
+          path: perf-evidence/
+          if-no-files-found: error
