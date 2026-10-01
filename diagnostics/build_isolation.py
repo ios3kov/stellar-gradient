@@ -9,7 +9,7 @@ import subprocess
 here = Path(__file__).resolve().parent
 root = here.parent
 src = (here / 'Stellar_Cosmic_Compare.jsx').read_text(encoding='utf-8')
-assert hashlib.sha256(src.encode()).hexdigest()=='ec24297f36ae2dda2b2595cfc75a5a45356f5a83113fa01092d820dce8d5c689'
+assert hashlib.sha256(src.encode()).hexdigest()=='61ef9c3c690e5cf7cabaedcc4b510fe13b79a6e25b9ef8c2ac54162b80799cf3'
 header='''/* Stellar / Cosmic feature isolation 1.0.
  * Reuses the Compare 1.0 lifecycle, now observed creating four real-host frames.
  * Eleven paired 512x288 fixtures (22 frames) isolate the texture-producing stages.
