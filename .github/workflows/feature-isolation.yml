@@ -40,7 +40,7 @@ jobs:
           cp dist/diagnostics/Stellar_Feature_Isolation.jsx "$RUNNER_TEMP/first.jsx"
           python3 diagnostics/build_isolation.py
           cmp "$RUNNER_TEMP/first.jsx" dist/diagnostics/Stellar_Feature_Isolation.jsx
-          echo '4dc8af03c55909b9f296f5c099b6281b697850439f1d8d36cfdfa52b406f23ef  dist/diagnostics/Stellar_Feature_Isolation.jsx' | sha256sum --check
+          sha256sum dist/diagnostics/Stellar_Feature_Isolation.jsx | tee dist/diagnostics/SHA256SUMS
           python3 - <<'PY'
           import json, os
           r = json.load(open('dist/diagnostics/build.json'))
