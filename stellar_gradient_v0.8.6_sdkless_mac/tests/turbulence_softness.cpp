@@ -90,6 +90,38 @@ int main() {
     require(mean_abs_rgb(t0.dst,t3.dst)>0.01,"Amount 40 changes output");
     require(mean_abs_rgb(t3.dst,t6.dst)>0.001,"Size 3 and Size 6 are distinct");
 
+    // Precomputation may change where coordinate state is evaluated, but never
+    // the field itself. Compare the cached renderer with direct cosmic_fbm4.
+    constexpr int W=96,H=64;
+    constexpr float tau2=6.28318530717958647692f;
+    const float bw=static_cast<float>(W), bh=static_cast<float>(H);
+    const float cx=0.5f*static_cast<float>(W-1), cy=0.5f*static_cast<float>(H-1);
+    const float angle=t.angle_deg*3.14159265358979323846f/180.0f;
+    const float dir_x=std::cos(angle), dir_y=std::sin(angle);
+    const float inv_x=1.0f/(32.0f*std::max(0.1f,t.turbulence_size_x));
+    const float inv_y=1.0f/(32.0f*std::max(0.1f,t.turbulence_size_y));
+    const float turns=t.turbulence_evolution/360.0f;
+    const float ax=turns*tau2, ay=(turns+43.7f)*tau2;
+    const float zx=0.5f*std::cos(ax), wx=0.5f*std::sin(ax);
+    const float zy=0.5f*std::cos(ay), wy=0.5f*std::sin(ay);
+    for(int y=0;y<H;++y) for(int x=0;x<W;++x){
+        const std::size_t i=(static_cast<std::size_t>(y)*static_cast<std::size_t>(W)+static_cast<std::size_t>(x))*4u;
+        const float layer_x=static_cast<float>(17+x), layer_y=static_cast<float>(-23+y);
+        const float nx4=layer_x*inv_x, ny4=layer_y*inv_y;
+        const float dx=stellar::cosmic_fbm4(nx4,ny4,zx,wx);
+        const float dy=stellar::cosmic_fbm4(nx4+137.5f,ny4+91.3f,zy,wy);
+        const float px=static_cast<float>(x)+dx*t.turbulence_amount*100.0f;
+        const float py=static_cast<float>(y)+dy*t.turbulence_amount*100.0f;
+        const float nx=(px-cx-0.5f)/bw, ny=(py-cy-0.5f)/bh;
+        const float u=(nx*dir_x+ny*dir_y)*t.cycles+0.5f+t.offset+t.phase_deg/360.0f;
+        const stellar::Color3f c=stellar::adjust_sat_brightness(stellar::sample_palette(t.colors,u),t.saturation,t.brightness);
+        const float alpha=t6.src[i+3];
+        near(t6.dst[i+0],c.r*alpha,2.0e-6f,"cached turbulence renderer R");
+        near(t6.dst[i+1],c.g*alpha,2.0e-6f,"cached turbulence renderer G");
+        near(t6.dst[i+2],c.b*alpha,2.0e-6f,"cached turbulence renderer B");
+        near(t6.dst[i+3],alpha,1.0e-6f,"cached turbulence renderer alpha");
+    }
+
     if(failures){ std::fprintf(stderr,"%d turbulence/softness checks failed\n",failures); return 1; }
     std::puts("PASS: recovered 4-D turbulence, 360-degree evolution, independent Softness blur, alpha/HDR contracts");
     return 0;

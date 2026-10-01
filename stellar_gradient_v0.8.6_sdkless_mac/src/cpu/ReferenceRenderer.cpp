@@ -124,9 +124,21 @@ void box_blur_rgb_v(const std::vector<float>& src, std::vector<float>& dst, int 
 // per-pixel math keeps the same gradient and interpolation order as perlin4().
 struct Perlin4SliceCache {
     struct Node { std::uint8_t hash[4]{}; }; // dz*2 + dw
+    struct AxisState {
+        int lattice=0;
+        float frac=0.0f;
+        float fade=0.0f;
+    };
+
     int x0=0,y0=0,w=0,h=0,zi=0,wi=0;
     float zf=0.0f,wf=0.0f,fade_z=0.0f,fade_w=0.0f;
     std::vector<Node> nodes;
+
+    static AxisState axis_state(float v) {
+        const int lattice=static_cast<int>(std::floor(v));
+        const float frac=v-static_cast<float>(lattice);
+        return {lattice,frac,perlin_fade(frac)};
+    }
 
     void build(float xmin,float xmax,float ymin,float ymax,float z,float ww) {
         if (xmin>xmax) std::swap(xmin,xmax);
@@ -151,10 +163,10 @@ struct Perlin4SliceCache {
         }
     }
 
-    float sample(float x,float y) const {
-        const int xi=static_cast<int>(std::floor(x)), yi=static_cast<int>(std::floor(y));
-        const float xf=x-static_cast<float>(xi), yf=y-static_cast<float>(yi);
-        const float u=perlin_fade(xf), v=perlin_fade(yf);
+    float sample(const AxisState& xs,const AxisState& ys) const {
+        const int xi=xs.lattice, yi=ys.lattice;
+        const float xf=xs.frac, yf=ys.frac;
+        const float u=xs.fade, v=ys.fade;
         float g[2][2][2][2]{};
         for(int dx=0;dx<2;++dx) for(int dy=0;dy<2;++dy){
             const int nx=xi+dx-x0, ny=yi+dy-y0;
@@ -171,22 +183,61 @@ struct Perlin4SliceCache {
         const float a=lerp(zw[0][0],zw[1][0],fade_z), b=lerp(zw[0][1],zw[1][1],fade_z);
         return lerp(a,b,fade_w);
     }
+
+    float sample(float x,float y) const {
+        return sample(axis_state(x),axis_state(y));
+    }
 };
 
 struct CosmicTurbulenceCache {
+    using AxisState=Perlin4SliceCache::AxisState;
+
     Perlin4SliceCache x[3],y[3];
-    void build(int origin_x,int origin_y,int width,int height,float inv_x,float inv_y,float zx,float wx,float zy,float wy){
-        const float x0=static_cast<float>(origin_x)*inv_x, x1=static_cast<float>(origin_x+width-1)*inv_x;
-        const float y0=static_cast<float>(origin_y)*inv_y, y1=static_cast<float>(origin_y+height-1)*inv_y;
+    std::vector<AxisState> x_cols[3],x_rows[3],y_cols[3],y_rows[3];
+
+    void build(int origin_x,int origin_y,int render_width,int render_height,float inv_x,float inv_y,
+               float zx,float wx,float zy,float wy){
+        const float x0=static_cast<float>(origin_x)*inv_x;
+        const float x1=static_cast<float>(origin_x+render_width-1)*inv_x;
+        const float y0=static_cast<float>(origin_y)*inv_y;
+        const float y1=static_cast<float>(origin_y+render_height-1)*inv_y;
         float freq=1.0f;
         for(int o=0;o<3;++o){
             x[o].build(x0*freq,x1*freq,y0*freq,y1*freq,zx*freq,wx*freq);
             y[o].build((x0+137.5f)*freq,(x1+137.5f)*freq,(y0+91.3f)*freq,(y1+91.3f)*freq,zy*freq,wy*freq);
+
+            x_cols[o].resize(static_cast<std::size_t>(render_width));
+            y_cols[o].resize(static_cast<std::size_t>(render_width));
+            for(int px=0;px<render_width;++px){
+                const float base=static_cast<float>(origin_x+px)*inv_x;
+                x_cols[o][static_cast<std::size_t>(px)]=Perlin4SliceCache::axis_state(base*freq);
+                y_cols[o][static_cast<std::size_t>(px)]=Perlin4SliceCache::axis_state((base+137.5f)*freq);
+            }
+
+            x_rows[o].resize(static_cast<std::size_t>(render_height));
+            y_rows[o].resize(static_cast<std::size_t>(render_height));
+            for(int py=0;py<render_height;++py){
+                const float base=static_cast<float>(origin_y+py)*inv_y;
+                x_rows[o][static_cast<std::size_t>(py)]=Perlin4SliceCache::axis_state(base*freq);
+                y_rows[o][static_cast<std::size_t>(py)]=Perlin4SliceCache::axis_state((base+91.3f)*freq);
+            }
             freq*=2.0f;
         }
     }
-    float sample_x(float x0,float y0) const { return (x[0].sample(x0,y0)+0.5f*x[1].sample(x0*2.0f,y0*2.0f)+0.25f*x[2].sample(x0*4.0f,y0*4.0f))/1.75f; }
-    float sample_y(float x0,float y0) const { x0+=137.5f; y0+=91.3f; return (y[0].sample(x0,y0)+0.5f*y[1].sample(x0*2.0f,y0*2.0f)+0.25f*y[2].sample(x0*4.0f,y0*4.0f))/1.75f; }
+
+    float sample_x(int px,int py) const {
+        const std::size_t sx=static_cast<std::size_t>(px), sy=static_cast<std::size_t>(py);
+        return (x[0].sample(x_cols[0][sx],x_rows[0][sy])
+              +0.5f*x[1].sample(x_cols[1][sx],x_rows[1][sy])
+              +0.25f*x[2].sample(x_cols[2][sx],x_rows[2][sy]))/1.75f;
+    }
+
+    float sample_y(int px,int py) const {
+        const std::size_t sx=static_cast<std::size_t>(px), sy=static_cast<std::size_t>(py);
+        return (y[0].sample(y_cols[0][sx],y_rows[0][sy])
+              +0.5f*y[1].sample(y_cols[1][sx],y_rows[1][sy])
+              +0.25f*y[2].sample(y_cols[2][sx],y_rows[2][sy]))/1.75f;
+    }
 };
 
 // Final-stage, channel-weighted grain. Existing independent noise/seed policy is
@@ -345,11 +396,8 @@ void render_reference(const ImageF32& img, const Params& p, double time_seconds,
                 const float alpha = clamp01(src[x * 4 + 3]);
                 float px=static_cast<float>(x), py=static_cast<float>(y);
                 if (plan.turbulence) {
-                    const float layer_x=static_cast<float>(img.origin_x+x), layer_y=static_cast<float>(img.origin_y+y);
-                    const float nx4=layer_x*turbulence_inv_x;
-                    const float ny4=layer_y*turbulence_inv_y;
-                    const float dx=turbulence_cache.sample_x(nx4,ny4);
-                    const float dy=turbulence_cache.sample_y(nx4,ny4);
+                    const float dx=turbulence_cache.sample_x(x,y);
+                    const float dy=turbulence_cache.sample_y(x,y);
                     px += dx*turbulence_pixels;
                     py += dy*turbulence_pixels;
                 }
