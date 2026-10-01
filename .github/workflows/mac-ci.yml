@@ -2,9 +2,11 @@ name: Mac CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix/stellar-release-gate]
     paths:
       - ".github/workflows/mac-ci.yml"
+      - ".github/scripts/compile-metal.sh"
+      - ".gitignore"
       - "stellar_gradient_v0.8.6_sdkless_mac/CMakeLists.txt"
       - "stellar_gradient_v0.8.6_sdkless_mac/FIRST_MAC_BUILD.command"
       - "stellar_gradient_v0.8.6_sdkless_mac/src/**"
@@ -12,7 +14,17 @@ on:
       - "stellar_gradient_v0.8.6_sdkless_mac/tests/**"
       - "stellar_gradient_v0.8.6_sdkless_mac/tools/**"
       - "stellar_gradient_v0.8.6_sdkless_mac/docs/SOURCE_FREEZE_V08_SHA256.txt"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mac-ci.yml"
+      - ".github/scripts/compile-metal.sh"
+      - ".gitignore"
+      - "stellar_gradient_v0.8.6_sdkless_mac/**"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: mac-ci-${{ github.ref }}
@@ -22,14 +34,38 @@ env:
   SRC: stellar_gradient_v0.8.6_sdkless_mac
 
 jobs:
+  source-record:
+    name: Source identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Record exact clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/COMMIT.txt
+          git archive --format=tar HEAD | gzip -n > evidence/source.tar.gz
+          (cd evidence && sha256sum source.tar.gz > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StellarGradient-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/
+          if-no-files-found: error
+
   contracts:
     name: Static contracts
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - name: Verify frozen contracts
         working-directory: ${{ env.SRC }}
         run: |
+          python3 tools/test_build_identity.py
+          python3 tools/verify_grain_pipeline.py --self-test
           python3 tools/verify_metadata.py
           python3 tools/verify_code_freeze.py
           python3 tools/verify_metal_perf.py
@@ -40,6 +76,7 @@ jobs:
   core-regression:
     name: Core ${{ matrix.mode }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -68,10 +105,17 @@ jobs:
               TSAN_OPTIONS=halt_on_error=1 ctest --test-dir build-ci --output-on-failure
               ;;
           esac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: StellarGradient-core-${{ matrix.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SRC }}/build-ci/Testing/Temporary/
+          if-no-files-found: warn
 
   native-mac:
     name: Native bridge + Metal
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - name: Strict bridge regression
@@ -84,20 +128,56 @@ jobs:
           COMMON=(sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp)
           for test in bridge_parity_test bridge_formats_test bridge_mfr_test; do
             "${CXX[@]}" "sdkless/bridge/${test}.cpp" "${COMMON[@]}" -pthread -o ".ci-native/${test}"
-            ".ci-native/${test}"
+            ".ci-native/${test}" | tee ".ci-native/${test}.log"
           done
           "${CXX[@]}" -c sdkless/bridge/MetalBridge.mm -o .ci-native/MetalBridge.o
+      - name: Metal entry validation and baseline reproducer (not GPU execution)
+        working-directory: ${{ env.SRC }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMON=(sdkless/bridge/metal_validation_host_test.mm sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp)
+          FLAGS=(-std=c++17 -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off -I sdkless/bridge -framework Foundation -framework Metal -framework MetalPerformanceShaders)
+          xcrun clang++ "${FLAGS[@]}" -O2 "${COMMON[@]}" sdkless/bridge/MetalBridge.mm -o .ci-native/metal-validation
+          .ci-native/metal-validation | tee .ci-native/metal-validation.log
+          .ci-native/metal-validation --rowbytes-reproducer | tee .ci-native/metal-reproducer-fixed.log
+          xcrun clang++ "${FLAGS[@]}" -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer "${COMMON[@]}" sdkless/bridge/MetalBridge.mm -o .ci-native/metal-validation-asan
+          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 .ci-native/metal-validation-asan | tee .ci-native/metal-validation-asan.log
+          # Pinned last native baseline; read-only fetch, never switches branches.
+          git fetch --no-tags --depth=1 origin d7e035ddf8751deb1c43c54d1cff050036890d64
+          git show d7e035ddf8751deb1c43c54d1cff050036890d64:"$SRC/sdkless/bridge/MetalBridge.mm" > .ci-native/MetalBridge.baseline.mm
+          xcrun clang++ "${FLAGS[@]}" -O2 "${COMMON[@]}" .ci-native/MetalBridge.baseline.mm -o .ci-native/metal-validation-baseline
+          set +e
+          .ci-native/metal-validation-baseline --rowbytes-reproducer > .ci-native/metal-reproducer-baseline.log 2>&1
+          rc=$?
+          set -e
+          cat .ci-native/metal-reproducer-baseline.log
+          test "$rc" -eq 1
+          grep -F 'result=-3 commands=1; expected=-1 commands=0' .ci-native/metal-reproducer-baseline.log
+      - name: Compile actual runtime Metal shader (not GPU execution)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /bin/bash .github/scripts/compile-metal.sh "$SRC/src/gpu/StellarGradientMetal.metal" "$SRC/.ci-native" 2>&1 | tee "$SRC/.ci-native/metal-compile.log"
       - name: ASan + UBSan bridge smoke
         working-directory: ${{ env.SRC }}
         shell: bash
         run: |
           set -euo pipefail
-          xcrun clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer             sdkless/bridge/bridge_parity_test.cpp sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp             -pthread -o .ci-native/bridge_asan
-          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 .ci-native/bridge_asan
+          xcrun clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer sdkless/bridge/bridge_parity_test.cpp sdkless/bridge/StellarBridge.cpp src/core/RenderPlan.cpp src/cpu/ReferenceRenderer.cpp -pthread -o .ci-native/bridge_asan
+          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 .ci-native/bridge_asan | tee .ci-native/bridge_asan.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: StellarGradient-native-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SRC }}/.ci-native/*.log
+          include-hidden-files: true
+          if-no-files-found: error
 
   rust-quality:
     name: Rust host quality
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -108,7 +188,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: cargo-quality-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.toml', env.SRC)) }}
+          key: cargo-quality-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.lock', env.SRC)) }}
       - name: fmt + check + test + clippy
         working-directory: ${{ env.SRC }}
         run: |
@@ -118,13 +198,15 @@ jobs:
           cd .sdkless-ci
           cargo fmt --all
           cargo fmt --all -- --check
-          cargo check --release
-          cargo test --release
-          cargo clippy --release -- -D warnings
+          cargo check --release --locked
+          cargo test --release --locked
+          cargo clippy --release --locked -- -D warnings
 
   release-bundle:
     name: ARM64 plugin bundle
+    needs: [source-record, contracts, core-regression, native-mac, rust-quality]
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -135,14 +217,15 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.toml', env.SRC)) }}
+          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/sdkless/Cargo.lock', env.SRC)) }}
       - name: Build ARM64 host
         working-directory: ${{ env.SRC }}/sdkless
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          SG_REQUIRE_CLEAN_BUILD: "1"
         run: |
           set -euo pipefail
-          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
       - name: Bundle + ad-hoc sign
         shell: bash
         run: |
@@ -164,14 +247,24 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleExecutable string StellarGradient' "$BUNDLE/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist" || /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.stellarlabs.StellarGradient' "$BUNDLE/Contents/Info.plist"
 
+          IDENTITIES=(target/"$TRIPLE"/release/build/stellar_gradient_host-*/out/stellar-build.json)
+          test "${#IDENTITIES[@]}" -eq 1 && test -f "${IDENTITIES[0]}"
+          python3 "$SRC/tools/package_identity.py" "$BUNDLE" --stamp "${IDENTITIES[0]}" --commit "$GITHUB_SHA"
           codesign --force --deep --sign - "$BUNDLE"
           codesign --verify --deep --strict "$BUNDLE"
           file "$BUNDLE/Contents/MacOS/StellarGradient"
           nm -gU "$BUNDLE/Contents/MacOS/StellarGradient" | grep -E 'EffectMain|PluginDataEntryFunction2'
           plutil -lint "$BUNDLE/Contents/Info.plist"
+          python3 "$SRC/tools/package_identity.py" "$BUNDLE" --manifest StellarGradient.manifest.json --commit "$GITHUB_SHA"
           ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" StellarGradient.plugin.zip
+          shasum -a 256 StellarGradient.plugin.zip > StellarGradient.plugin.zip.sha256
+          git rev-parse HEAD > StellarGradient.commit.txt
       - uses: actions/upload-artifact@v4
         with:
           name: StellarGradient-mac-arm64
-          path: StellarGradient.plugin.zip
+          path: |
+            StellarGradient.plugin.zip
+            StellarGradient.plugin.zip.sha256
+            StellarGradient.commit.txt
+            StellarGradient.manifest.json
           if-no-files-found: error

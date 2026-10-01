@@ -54,3 +54,22 @@ add_test(NAME stellar_tile_consistency COMMAND stellar_tile_consistency)
 add_test(NAME stellar_quality_reference COMMAND stellar_quality_reference)
 add_test(NAME stellar_hardening COMMAND stellar_hardening)
 add_test(NAME stellar_mfr_stress COMMAND stellar_mfr_stress)
+
+add_executable(stellar_palette_geometry tests/palette_geometry.cpp)
+target_link_libraries(stellar_palette_geometry PRIVATE stellar_core)
+add_test(NAME stellar_palette_geometry COMMAND stellar_palette_geometry)
+
+add_executable(stellar_grain_contract tests/grain_contract.cpp)
+target_link_libraries(stellar_grain_contract PRIVATE stellar_core)
+add_test(NAME stellar_grain_contract COMMAND stellar_grain_contract)
+
+# Header-level Metal buffer/geometry checks run on every platform and sanitizer.
+add_executable(stellar_metal_validation tests/metal_validation.cpp)
+target_link_libraries(stellar_metal_validation PRIVATE stellar_core)
+target_compile_options(stellar_metal_validation PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+add_test(NAME stellar_metal_validation COMMAND stellar_metal_validation)
+
+add_executable(stellar_turbulence_softness tests/turbulence_softness.cpp)
+target_link_libraries(stellar_turbulence_softness PRIVATE stellar_core)
+target_compile_options(stellar_turbulence_softness PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+add_test(NAME stellar_turbulence_softness COMMAND stellar_turbulence_softness)

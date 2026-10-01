@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "run_id": "Stellar-Compare-1790620677995-6755435",
+  "runner_version": "Compare 1.0",
+  "summary": "CAPTURES_COMPLETE",
+  "archive_sha256": "61c6e79ddd53ee62332b78e9eae032a8a9f9de3d689bb1b913db6ea365ed43b3",
+  "files": {
+    "cosmic_128/frame_00000.png": "b2737be14b231311d8ba374f653fa9011b2b6419e5a497a316e6660c4f5e53b6",
+    "cosmic_512/frame_00000.png": "ca95a713956337821335034c27c1126633f271675d7569858d90bdd90eb7b8ac",
+    "events.jsonl": "7b426274db909158588e3d18cabe175906691dc9c9a358da8abd446b7da6f0be",
+    "report.json": "b43b64903bcc2eebc2e0e89671720a8c6c63d0c68365955f123bd3fe5c07138b",
+    "stellar_128/frame_00000.png": "450f6c10feac290dda75d6460cf27e7558b95117c90faa788dd8dc0f15012e57",
+    "stellar_512/frame_00000.png": "f4d2e7e4973f8d5256a48246a6568c667664af543572786e8b86ee12c4a0534d"
+  },
+  "environment": {
+    "ae_version": "25.6x101",
+    "ae_build": 101,
+    "os": "Macintosh OS 26.6.2/64"
+  },
+  "project_settings": {
+    "bits_per_channel": 8,
+    "working_space": "sRGB IEC61966-2.1",
+    "linear_blending": false
+  },
+  "loaded_build_id": "NOT_VERIFIED",
+  "metrics": {
+    "128": {
+      "width": 128,
+      "height": 96,
+      "output": "RGB8",
+      "matched_common_parameter_count": 35,
+      "exact_red_pixels": 2728,
+      "excluded_pixels": 4244,
+      "full_mae_code_values": 80.3251953125,
+      "outside_red_cross_mae_code_values": 66.67739930382893,
+      "neighbor_absdiff_outside_mask_cosmic": 3.961703313188462,
+      "neighbor_absdiff_outside_mask_stellar": 48.35731430285886,
+      "mask_rule": "Cosmic RGB==[255,0,0], dilated with 5x5 square; metric only, original pixels unmodified"
+    },
+    "512": {
+      "width": 512,
+      "height": 288,
+      "output": "RGB8",
+      "matched_common_parameter_count": 35,
+      "exact_red_pixels": 32574,
+      "excluded_pixels": 38496,
+      "full_mae_code_values": 78.17349130135996,
+      "outside_red_cross_mae_code_values": 64.32188264806656,
+      "neighbor_absdiff_outside_mask_cosmic": 3.6361717676905796,
+      "neighbor_absdiff_outside_mask_stellar": 39.04553453755506,
+      "mask_rule": "Cosmic RGB==[255,0,0], dilated with 5x5 square; metric only, original pixels unmodified"
+    }
+  },
+  "conclusion": "Fresh default renders visibly differ; capture completion does not establish equivalence.",
+  "limitations": [
+    "8-bit RGB output only; no alpha/HDR proof.",
+    "Actual engine and loaded binary identity are unverified.",
+    "Pure-red cross retained in originals; numerical exclusion is not restoration or a license conclusion.",
+    "One stochastic frame per size; metrics are observations, not approved parity thresholds."
+  ],
+  "common_defaults_count": 35
+}

@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "date": "2026-09-28",
+  "implemented_commit": "b0a345870dd64b52131a4705c1a65603a1ef72cb",
+  "tested_source_tree": "b06c15057eecd1cb67b6bd68556ed9f92b12a977",
+  "scope": "Linux CPU tests of byte-identical source. Not an AE or Metal execution.",
+  "checks": {
+    "parent_new_geometry_regression": "FAIL: 54750 assertions (expected reproducer)",
+    "corrected_core_strict": "PASS: 8/8",
+    "corrected_core_asan_ubsan": "PASS: 8/8",
+    "native_cpu_bridge_parity_formats_mfr": "PASS",
+    "source_contracts": "PASS",
+    "python_identity": "PASS: 10/10"
+  },
+  "log_sha256": {
+    "base-old-regression.log": "f0bce896fe6d2cbbc98e1dbb38b68ea62a8783404c05605b2ca1ebe86314fffa",
+    "basefix-strict.log": "8c5995af85101cd78b7e0951d37694f7919a2354fc41f73b6afa369edacc3afd",
+    "basefix-asan.log": "cc37339fb8668e7130402a5cd8b4d17d7e55ee49c9f3efd7e5e2501c17f27b19",
+    "basefix-contracts.log": "4271a5c8158fc61455757b88512e575316dc76124df90287c913369c4cf6da8b"
+  },
+  "new_native_mac_ci": "NOT RUN at record creation",
+  "new_AE_Metal_runtime": "NOT RUN",
+  "release_status": "NOT_APPROVED"
+}

@@ -35,7 +35,32 @@ inline float h01(uint x){return float(h32(x)&0x00ffffffu)*(1.0f/16777215.0f);}
 inline float sm(float x){x=clamp01(x);return x*x*(3.0f-2.0f*x);}
 inline float n2(float x,float y,uint seed){int ix=int(floor(x)),iy=int(floor(y));float fx=sm(x-float(ix)),fy=sm(y-float(iy));auto hh=[&](int xx,int yy){return h01(uint(xx)*0x9e3779b9u ^ uint(yy)*0x85ebca6bu ^ seed);};float a=hh(ix,iy),b=hh(ix+1,iy),c=hh(ix,iy+1),d=hh(ix+1,iy+1);return mix(mix(a,b,fx),mix(c,d,fx),fy)*2.0f-1.0f;}
 inline float fbm(float x,float y,float soft,uint seed){float sum=0,amp=.5,norm=0;int oct=2+int(clamp01(soft)*3.0f);for(int i=0;i<5;i++){if(i>=oct)break;sum+=n2(x,y,seed+uint(i)*911u)*amp;norm+=amp;x*=2.03f;y*=2.03f;amp*=.5f;}return sum/max(norm,1e-6f);}
-inline float3 palette(constant SGParamsGPU& p,float t){t=t-floor(t);float z=t*5.0f;int i0=int(floor(z))%5,i1=(i0+1)%5;float f=sm(z-floor(z));float3 a=float3(p.colors[i0].r,p.colors[i0].g,p.colors[i0].b),b=float3(p.colors[i1].r,p.colors[i1].g,p.colors[i1].b),c=mix(a,b,f);float y=dot(c,float3(.2126,.7152,.0722));return (y+(c-y)*p.saturation)*p.brightness;}
+
+constant uchar kCosmicPerm[256] = {151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180};
+inline int cperm(int i){return int(kCosmicPerm[uint(i)&255u]);}
+inline float pfade(float t){return t*t*t*(t*(t*6.0f-15.0f)+10.0f);}
+inline float pgrad4(int hash,float x,float y,float z,float w){
+    int h=hash&31,group=h>>3; float a,b,c;
+    if(group==0){a=y;b=z;c=w;} else if(group==1){a=w;b=x;c=y;} else if(group==2){a=z;b=w;c=x;} else {a=x;b=y;c=z;}
+    if((h&4)==0)a=-a;if((h&2)==0)b=-b;if((h&1)==0)c=-c;return a+b+c;
+}
+inline float p4(float x,float y,float z,float w){
+    int xi=int(floor(x)),yi=int(floor(y)),zi=int(floor(z)),wi=int(floor(w));
+    float xf=x-float(xi),yf=y-float(yi),zf=z-float(zi),wf=w-float(wi);
+    float u=pfade(xf),v=pfade(yf),ss=pfade(zf),tt=pfade(wf);
+    int px[2],pxy[2][2],pxyz[2][2][2];
+    for(int dx=0;dx<2;++dx){px[dx]=cperm(xi+dx);for(int dy=0;dy<2;++dy){pxy[dx][dy]=cperm(px[dx]+yi+dy);for(int dz=0;dz<2;++dz)pxyz[dx][dy][dz]=cperm(pxy[dx][dy]+zi+dz);}}
+    float g[2][2][2][2];
+    for(int dx=0;dx<2;++dx)for(int dy=0;dy<2;++dy)for(int dz=0;dz<2;++dz)for(int dw=0;dw<2;++dw){
+        int h=cperm(pxyz[dx][dy][dz]+wi+dw);
+        g[dx][dy][dz][dw]=pgrad4(h,xf-float(dx),yf-float(dy),zf-float(dz),wf-float(dw));
+    }
+    float yz[2][2][2];for(int dy=0;dy<2;++dy)for(int dz=0;dz<2;++dz)for(int dw=0;dw<2;++dw)yz[dy][dz][dw]=mix(g[0][dy][dz][dw],g[1][dy][dz][dw],u);
+    float zw[2][2];for(int dz=0;dz<2;++dz)for(int dw=0;dw<2;++dw)zw[dz][dw]=mix(yz[0][dz][dw],yz[1][dz][dw],v);
+    float q0=mix(zw[0][0],zw[1][0],ss),q1=mix(zw[0][1],zw[1][1],ss);return mix(q0,q1,tt);
+}
+inline float cosmic_fbm(float x,float y,float z,float w){float sum=0.0f,amp=1.0f,norm=0.0f,freq=1.0f;for(int i=0;i<3;++i){sum+=p4(x*freq,y*freq,z*freq,w*freq)*amp;norm+=amp;amp*=0.5f;freq*=2.0f;}return sum/norm;}
+inline float3 palette(constant SGParamsGPU& p,float t){t=t-floor(t);float z=t*5.0f;int i0=int(floor(z))%5,i1=(i0+1)%5;float f=z-floor(z);float3 a=float3(p.colors[i0].r,p.colors[i0].g,p.colors[i0].b),b=float3(p.colors[i1].r,p.colors[i1].g,p.colors[i1].b),c=mix(a,b,f);float y=dot(c,float3(.2126,.7152,.0722));return (y+(c-y)*p.saturation)*p.brightness;}
 inline float soft_clip(float v,float s){return s>0.0f?v/(1.0f+s*max(0.0f,v-1.0f)):v;}
 inline float4 load_bgra(device const float4* src,constant SGParamsGPU& p,uint2 gid){
     int sx=int(gid.x)-p.src_offset_x, sy=int(gid.y)-p.src_offset_y;
@@ -45,16 +70,39 @@ inline float4 load_bgra(device const float4* src,constant SGParamsGPU& p,uint2 g
 } // AE GPU worlds are BGRA128
 inline void store_bgra(device float4* dst,int pitch,uint2 gid,float4 q){dst[gid.y*uint(pitch)+gid.x]=float4(q.z,q.y,q.x,q.w);}
 
+// Apply grain exactly once, only in the three final-output kernels. The glow
+// source/composed mip chain stays grain-free. Envelope is premultiplied without
+// division; RGB is not clamped, retaining the existing signed/HDR contract.
+inline float4 finish_grain(float4 pixel, constant SGParamsGPU& p, uint2 work_gid) {
+    if(p.grain_amount<=1.0e-6f || pixel.a<=0.0f) return pixel;
+    float2 pos=float2(int(work_gid.x)+p.origin_x,int(work_gid.y)+p.origin_y);
+    uint gx=uint(int(floor(pos.x*p.grain_inv_size))),gy=uint(int(floor(pos.y*p.grain_inv_size)));
+    uint h=h32(p.grain_seed ^ gx*73856093u ^ gy*19349663u);
+    float mono=(h01(h)-0.5f)*2.0f;
+    float3 chromatic=(float3(h01(h^0x68bc21ebu),h01(h^0x02e5be93u),h01(h^0x967a889bu))-0.5f)*2.0f;
+    float3 weight=0.3f*(0.15f*pixel.a+0.85f*clamp(pixel.rgb,float3(0.0f),float3(pixel.a)));
+    pixel.rgb+=mix(float3(mono),chromatic,p.grain_color)*p.grain_amount*weight;
+    return pixel;
+}
+
+inline float3 shade_color(texture2d<float, access::read> depth_map, constant SGParamsGPU& p, uint2 gid) {
+    float px=float(gid.x),py=float(gid.y);
+    if(p.turbulence_amount!=0.0f){
+        float2 lp=float2(int(gid.x)+p.origin_x,int(gid.y)+p.origin_y);
+        float nx4=lp.x*p.turbulence_inv_x,ny4=lp.y*p.turbulence_inv_y;
+        // Frame-constant 4-D evolution coordinates are precomputed by the bridge.
+        // Existing ABI slots: evolution/softness = field-X z/w, evo_x/evo_y = field-Y z/w.
+        float dx=cosmic_fbm(nx4,ny4,p.turbulence_evolution,p.turbulence_softness);
+        float dy=cosmic_fbm(nx4+137.5f,ny4+91.3f,p.turbulence_evo_x,p.turbulence_evo_y);
+        float amount=p.turbulence_amount*100.0f;px+=dx*amount;py+=dy*amount;
+    }
+    float nx=(px-p.bound_cx-0.5f)*p.inv_bw,ny=(py-p.bound_cy-0.5f)*p.inv_bh;
+    float u=(nx*p.dir_x+ny*p.dir_y)*p.cycles+0.5f+p.phase_offset;
+    if(p.depth_enabled!=0u)u+=depth_map.read(gid).r*p.bulge;
+    return palette(p,u);
+}
 inline float4 shade_base(device const float4* src, texture2d<float, access::read> depth_map, constant SGParamsGPU& p, uint2 gid) {
-    float4 s=load_bgra(src,p,gid); float alpha=clamp01(s.a);
-    float nx=(float(gid.x)-p.bound_cx)*p.inv_bw,ny=(float(gid.y)-p.bound_cy)*p.inv_bh;
-    float u=(nx*p.dir_x+ny*p.dir_y)*p.cycles+p.phase_offset;
-    float2 layer_pos=float2(int(gid.x)+p.origin_x,int(gid.y)+p.origin_y);
-    if(p.turbulence_amount!=0){u+=fbm(layer_pos.x*p.turbulence_inv_x+p.turbulence_evo_x,layer_pos.y*p.turbulence_inv_y+p.turbulence_evo_y,p.turbulence_softness,0x6d2b79f5u)*p.turbulence_amount;}
-    if(p.depth_enabled!=0u) u+=depth_map.read(gid).r*p.bulge;
-    float3 c=palette(p,u);
-    if(p.grain_amount>0){uint gx=uint(int(floor(layer_pos.x*p.grain_inv_size))),gy=uint(int(floor(layer_pos.y*p.grain_inv_size)));uint h=h32(p.grain_seed ^ gx*73856093u ^ gy*19349663u);float mono=(h01(h)-.5f)*2.0f*p.grain_amount;float3 chr=float3(h01(h^0x68bc21ebu),h01(h^0x02e5be93u),h01(h^0x967a889bu));chr=(chr-.5f)*2.0f*p.grain_amount;c+=mix(float3(mono),chr,p.grain_color);}
-    return float4(c*alpha,alpha);
+    float alpha=clamp01(load_bgra(src,p,gid).a); return float4(shade_color(depth_map,p,gid)*alpha,alpha);
 }
 
 kernel void SGDepthKernel(device const float4* src [[buffer(0)]],
@@ -68,6 +116,18 @@ kernel void SGDepthKernel(device const float4* src [[buffer(0)]],
     float depth=alpha*ramp;
     if(alpha>0.0f && abs(p.depth_contrast-1.0f)>1.0e-3f) depth=alpha*clamp01((depth-0.5f)*p.depth_contrast+0.5f);
     depth_map.write(float4(depth,0.0f,0.0f,1.0f),gid);
+}
+
+kernel void SGBaseUnmaskedKernel(texture2d<float, access::write> base [[texture(0)]],
+                                 texture2d<float, access::read> depth_map [[texture(1)]],
+                                 constant SGParamsGPU& p [[buffer(0)]], uint2 gid [[thread_position_in_grid]]) {
+    if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return; base.write(float4(shade_color(depth_map,p,gid),1.0f),gid);
+}
+kernel void SGSoftMaskKernel(device const float4* src [[buffer(0)]], texture2d<float, access::read_write> base [[texture(0)]], constant SGParamsGPU& p [[buffer(1)]], uint2 gid [[thread_position_in_grid]]) {
+    if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return; float a=clamp01(load_bgra(src,p,gid).a); float4 q=base.read(gid); base.write(float4(q.rgb*a,a),gid);
+}
+kernel void SGGlowSourceKernel(texture2d<float, access::read> base [[texture(0)]], texture2d<float, access::write> glow0 [[texture(1)]], constant SGParamsGPU& p [[buffer(0)]], uint2 gid [[thread_position_in_grid]]) {
+    if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return; float4 v=base.read(gid); float lum=dot(v.rgb,float3(.2126,.7152,.0722)); float k=clamp01((lum-p.glow_threshold)*p.glow_threshold_inv); glow0.write(v*k,gid);
 }
 
 kernel void SGBaseKernel(device const float4* src [[buffer(0)]],
@@ -99,7 +159,7 @@ kernel void SGBaseOutKernel(device const float4* src [[buffer(0)]],
                             constant SGParamsGPU& p [[buffer(2)]],
                             uint2 gid [[thread_position_in_grid]]) {
     if(gid.x>=uint(p.width)||gid.y>=uint(p.height)) return;
-    store_bgra(dst,p.dst_pitch,gid,shade_base(src,depth_map,p,gid));
+    store_bgra(dst,p.dst_pitch,gid,finish_grain(shade_base(src,depth_map,p,gid),p,gid));
 }
 
 inline float4 composite_pixel(texture2d<float, access::read> base,
@@ -152,7 +212,7 @@ kernel void SGComposeOutKernel(texture2d<float, access::read> base [[texture(0)]
                                device float4* dst [[buffer(0)]],constant SGParamsGPU& p [[buffer(1)]],uint2 gid [[thread_position_in_grid]]){
     if(gid.x>=uint(p.out_width)||gid.y>=uint(p.out_height)) return;
     uint2 work_gid=uint2(gid.x+uint(p.crop_x),gid.y+uint(p.crop_y));
-    store_bgra(dst,p.dst_pitch,gid,composite_pixel(base,glowMip,p,work_gid));
+    store_bgra(dst,p.dst_pitch,gid,finish_grain(composite_pixel(base,glowMip,p,work_gid),p,work_gid));
 }
 
 kernel void SGDiffusionOutKernel(texture2d<float, access::sample> composedMip [[texture(0)]],
@@ -167,5 +227,5 @@ kernel void SGDiffusionOutKernel(texture2d<float, access::sample> composedMip [[
     if(p.diffusion_invert!=0) amount=1.0f-amount;
     float lod=amount*p.diffusion_lod;
     float4 q=composedMip.sample(s,uv,level(lod));
-    store_bgra(dst,p.dst_pitch,gid,mix(sharp,q,amount));
+    store_bgra(dst,p.dst_pitch,gid,finish_grain(mix(sharp,q,amount),p,work_gid));
 }

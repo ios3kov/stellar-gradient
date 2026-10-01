@@ -38,7 +38,7 @@ int main(){
     // F32/HDR path must preserve values above 1.0 rather than clipping RGB.
     stellar::Params hdr;
     hdr.brightness=4.0f; hdr.saturation=1.0f;
-    hdr.glow_intensity=0.0f; hdr.grain_amount=0.0f; hdr.turbulence_amount=0.0f; hdr.diffusion_blur_px=0.0f; hdr.bulge=0.0f;
+    hdr.glow_intensity=0.0f; hdr.grain_amount=0.0f; hdr.turbulence_amount=0.0f; hdr.turbulence_softness=0.0f; hdr.diffusion_blur_px=0.0f; hdr.bulge=0.0f;
     const auto opaque=render_with_alpha(1.0f,hdr);
     const auto half=render_with_alpha(0.5f,hdr);
     float max_rgb=0.0f;
@@ -70,7 +70,7 @@ int main(){
     stellar::Params wide;
     wide.colors[0]={4.0f,-0.25f,2.0f};
     wide.colors[1]={3.0f,0.5f,1.5f};
-    wide.glow_intensity=0.0f; wide.grain_amount=0.0f; wide.turbulence_amount=0.0f; wide.diffusion_blur_px=0.0f; wide.bulge=0.0f;
+    wide.glow_intensity=0.0f; wide.grain_amount=0.0f; wide.turbulence_amount=0.0f; wide.turbulence_softness=0.0f; wide.diffusion_blur_px=0.0f; wide.bulge=0.0f;
     const auto wide_out=render_with_alpha(1.0f,wide);
     bool has_over=false,has_under=false;
     for(std::size_t i=0;i<wide_out.size();i+=4u){

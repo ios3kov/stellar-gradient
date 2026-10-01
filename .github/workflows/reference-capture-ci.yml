@@ -1,0 +1,45 @@
+name: Default reference capture harness
+on:
+  push:
+    branches: [fix/stellar-release-gate]
+    paths:
+      - diagnostics/Stellar_Cosmic_Compare.jsx
+      - diagnostics/test_compare.cjs
+      - diagnostics/test_runner_v1_1.cjs
+      - diagnostics/validation_target_v010.json
+      - diagnostics/test_target_identity.py
+      - diagnostics/Stellar_AE_Diagnostics_v1_3.jsx
+      - diagnostics/Stellar_Mac_Check.command
+      - .github/workflows/reference-capture-ci.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - diagnostics/Stellar_Cosmic_Compare.jsx
+      - diagnostics/test_compare.cjs
+      - diagnostics/test_runner_v1_1.cjs
+      - diagnostics/validation_target_v010.json
+      - diagnostics/test_target_identity.py
+      - diagnostics/Stellar_AE_Diagnostics_v1_3.jsx
+      - diagnostics/Stellar_Mac_Check.command
+      - .github/workflows/reference-capture-ci.yml
+permissions:
+  contents: read
+concurrency:
+  group: default-reference-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retained lifecycle and new reference-capture contracts (not real AE)
+        run: |
+          node diagnostics/test_compare.cjs
+          node diagnostics/test_runner_v1_2.cjs
+          python3 diagnostics/test_target_identity.py
+      - name: Record exact handoff identity
+        run: sha256sum diagnostics/Stellar_Cosmic_Compare.jsx diagnostics/validation_target_v010.json

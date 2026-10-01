@@ -1,0 +1,13 @@
+# Reproducible build outputs; source and dependency locks remain tracked.
+/target/
+/dist/
+/evidence/
+**/__pycache__/
+**/sdkless/target/
+/stellar_gradient_v0.8.6_sdkless_mac/build*/
+/stellar_gradient_v0.8.6_sdkless_mac/.ci-native/
+/stellar_gradient_v0.8.6_sdkless_mac/.sdkless-ci/
+/stellar_gradient_v0.8.6_sdkless_mac/.sdkless-build/
+/stellar_gradient_v0.8.6_sdkless_mac/.sdkless-target/
+/stellar_gradient_v0.8.6_sdkless_mac/.mac-preflight/
+/stellar_gradient_v0.8.6_sdkless_mac/dist/

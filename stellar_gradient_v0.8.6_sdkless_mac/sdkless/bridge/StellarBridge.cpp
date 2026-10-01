@@ -186,8 +186,17 @@ stellar::gpu::ParamsGPU pack_gpu(const SGRenderStateC& s, int work_w, int work_h
     q.phase_offset=q.offset+q.phase;
     q.depth_inv_diag=1.0f/std::max(1.0f,0.5f*std::sqrt(bw*bw+bh*bh));
     q.rounding_clamped=std::clamp(q.rounding,0.0f,1.0f);
-    q.turbulence_inv_x=1.0f/std::max(1.0f,q.turbulence_scale_x); q.turbulence_inv_y=1.0f/std::max(1.0f,q.turbulence_scale_y);
-    q.turbulence_evo_x=q.turbulence_evolution*0.013f; q.turbulence_evo_y=q.turbulence_evolution*0.017f;
+    q.turbulence_inv_x=1.0f/(32.0f*std::max(0.1f,q.turbulence_scale_x)); q.turbulence_inv_y=1.0f/(32.0f*std::max(0.1f,q.turbulence_scale_y));
+    // The GPU struct is frozen at 352 bytes. Softness is a host-side blur now,
+    // so these four existing slots carry the frame-constant 4-D evolution ring
+    // coordinates. This removes sin/cos from every Metal pixel without an ABI change.
+    const float turbulence_turns=p.turbulence_evolution/360.0f;
+    const float turbulence_angle=turbulence_turns*6.28318530717958647692f;
+    const float turbulence_angle_y=(turbulence_turns+43.7f)*6.28318530717958647692f;
+    q.turbulence_evolution=0.5f*std::cos(turbulence_angle); // field-X z
+    q.turbulence_softness=0.5f*std::sin(turbulence_angle);  // field-X w
+    q.turbulence_evo_x=0.5f*std::cos(turbulence_angle_y);   // field-Y z
+    q.turbulence_evo_y=0.5f*std::sin(turbulence_angle_y);   // field-Y w
     q.grain_inv_size=1.0f/std::max(0.5f,q.grain_size); q.glow_lod=plan.glow_lod; q.glow_spread=std::max(0.35f,0.45f*q.glow_falloff);
     q.glow_threshold_inv=1.0f/std::max(1.0e-5f,1.0f-q.glow_threshold); q.diffusion_lod=plan.diffusion_max_lod;
     q.diffusion_cx=static_cast<float>(q.min_x)+q.center_x*static_cast<float>(std::max(0,q.max_x-q.min_x));

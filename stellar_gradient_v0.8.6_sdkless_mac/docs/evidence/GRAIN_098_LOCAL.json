@@ -1,0 +1,362 @@
+{
+  "artifact": "source patch only; no plugin binary built or delivered",
+  "base_source_archive_sha256": "cde81a51fa1a4b7b8abab21541689cd2ea389ec297315c5da303f5d6ba5b6e60",
+  "benchmark_limitations": "3 alternating process runs; each case warms then times 3 frames at 640x360 or 2 at 1280x720. Sandbox CPU timings are not real AE profiling or an acceleration claim. Some full-render median times increased.",
+  "benchmarks_ms_per_frame": {
+    "1280x720 base": {
+      "after": [
+        21.905,
+        22.891,
+        21.812
+      ],
+      "after_median": 21.905,
+      "before": [
+        19.082,
+        20.164,
+        23.634
+      ],
+      "before_median": 20.164,
+      "median_change_percent": 8.634199563578647
+    },
+    "1280x720 full": {
+      "after": [
+        106.763,
+        103.683,
+        110.057
+      ],
+      "after_median": 106.763,
+      "before": [
+        105.647,
+        93.401,
+        102.571
+      ],
+      "before_median": 102.571,
+      "median_change_percent": 4.086925154283372
+    },
+    "1280x720 procedural": {
+      "after": [
+        42.602,
+        43.152,
+        42.567
+      ],
+      "after_median": 42.602,
+      "before": [
+        41.025,
+        40.881,
+        41.296
+      ],
+      "before_median": 41.025,
+      "median_change_percent": 3.8439975624618983
+    },
+    "640x360 base": {
+      "after": [
+        4.866,
+        3.991,
+        5.605
+      ],
+      "after_median": 4.866,
+      "before": [
+        4.05,
+        4.004,
+        4.861
+      ],
+      "before_median": 4.05,
+      "median_change_percent": 20.148148148148138
+    },
+    "640x360 full": {
+      "after": [
+        29.063,
+        29.652,
+        30.37
+      ],
+      "after_median": 29.652,
+      "before": [
+        26.403,
+        27.449,
+        26.664
+      ],
+      "before_median": 26.664,
+      "median_change_percent": 11.20612061206121
+    },
+    "640x360 procedural": {
+      "after": [
+        11.419,
+        9.717,
+        10.327
+      ],
+      "after_median": 10.327,
+      "before": [
+        10.496,
+        12.114,
+        17.151
+      ],
+      "before_median": 12.114,
+      "median_change_percent": -14.751527158659405
+    }
+  },
+  "date": "2026-09-28",
+  "environment": {
+    "cmake": "cmake version 3.31.6",
+    "compiler": "c++ (Debian 14.2.0-19) 14.2.0",
+    "machine": "x86_64",
+    "os": "Linux",
+    "python": "3.13.5"
+  },
+  "golden_update": {
+    "base_changed": false,
+    "diffusion_after": "const Signature expected_diffusion{{0.295013711773,0.150800229448,0.22686405208,0.410006911297},{1.16848707199f,0.804933488369f,1.04231488705f,1.0f},0.732832073462};",
+    "diffusion_before": "const Signature expected_diffusion{{0.295177333564,0.150957449739,0.227051498241,0.410032585306},{1.17445683479f,0.810662865639f,1.05105912685f,1.0f},0.733425523617};",
+    "heavy_after": "const Signature expected_heavy{{0.283231098352,0.145369753914,0.216848134085,0.393043567049},{1.16884696484f,0.811104536057f,1.0470533371f,1.0f},0.797259870452};",
+    "heavy_before": "const Signature expected_heavy{{0.283385199018,0.145518645682,0.217021554956,0.393068882846},{1.17579376698f,0.818551063538f,1.05664932728f,1.0f},0.797906756812};",
+    "reason": "channel-weighted final grain no longer feeds Glow/Diffusion",
+    "tolerances_changed": false
+  },
+  "implementation": "Independent existing PRNG retained; channel-dependent envelope and final-output placement changed on CPU/Metal.",
+  "measurements": {
+    "after": {
+      "image_difference_from_reference": {
+        "mae_codes": 4.100540120624901,
+        "max_codes": 18.0,
+        "rmse_codes": 5.110775125926185
+      },
+      "raw_sha256": "e2ff62140489b9ac1d6dea66a48837e09735f5f27eb2c3e419969eead1a2c367",
+      "statistics": {
+        "base_brightness_bins": [
+          {
+            "channel_samples": 13076,
+            "mae_codes": 4.013000917711839,
+            "range": [
+              0,
+              64
+            ],
+            "rms_codes": 4.855010058432671
+          },
+          {
+            "channel_samples": 169214,
+            "mae_codes": 3.167232025718912,
+            "range": [
+              64,
+              128
+            ],
+            "rms_codes": 3.7740173326123316
+          },
+          {
+            "channel_samples": 86898,
+            "mae_codes": 2.7809615871481506,
+            "range": [
+              128,
+              192
+            ],
+            "rms_codes": 3.2474493697587272
+          },
+          {
+            "channel_samples": 57776,
+            "mae_codes": 3.0590729714760454,
+            "range": [
+              192,
+              256
+            ],
+            "rms_codes": 3.5648854589791656
+          }
+        ],
+        "mean_absolute_change_codes": 3.079283957866921,
+        "rms_change_codes": 3.6554630252434284,
+        "signed_mean_change_codes": -0.08984781199153423
+      }
+    },
+    "archive_sha256": "31dd998ea2f83854280a81d80217bfa115744c06a78ba4f60334a7486feed006",
+    "base_projection_error": {
+      "mae_codes": 0.0675273118753135,
+      "max_codes": 3.0,
+      "rmse_codes": 0.3053165793499674
+    },
+    "base_raw_sha256": "0ca968d739dc13702669b9cc6b03af1e7b368bd8260a65cab24f5d2fa5ba7baf",
+    "before": {
+      "image_difference_from_reference": {
+        "mae_codes": 32.8374714035796,
+        "max_codes": 129.0,
+        "rmse_codes": 41.16470624618516
+      },
+      "raw_sha256": "b490cb5a78f2d47c897144078529fc6279024eef0b66ff6f3d0a65ff989c7891",
+      "statistics": {
+        "base_brightness_bins": [
+          {
+            "channel_samples": 13076,
+            "mae_codes": 47.38153869684919,
+            "range": [
+              0,
+              64
+            ],
+            "rms_codes": 51.268795283660324
+          },
+          {
+            "channel_samples": 169214,
+            "mae_codes": 42.854740151524105,
+            "range": [
+              64,
+              128
+            ],
+            "rms_codes": 50.57420954150725
+          },
+          {
+            "channel_samples": 86898,
+            "mae_codes": 23.05198048286497,
+            "range": [
+              128,
+              192
+            ],
+            "rms_codes": 27.788377372674088
+          },
+          {
+            "channel_samples": 57776,
+            "mae_codes": 14.266183190252008,
+            "range": [
+              192,
+              256
+            ],
+            "rms_codes": 16.646543110667416
+          }
+        ],
+        "mean_absolute_change_codes": 32.72102433295409,
+        "rms_change_codes": 41.024725967552044,
+        "signed_mean_change_codes": -6.086287787034658
+      }
+    },
+    "limitations": [
+      "Single static Size=1, Amount=20%, Color=100% fixture.",
+      "Existing independent Stellar PRNG retained: different random field; no pixel-exact match.",
+      "No new AE/Metal execution, HDR/alpha certification or validated other grain settings.",
+      "Turbulence/Softness/Glow/Diffusion algorithms not corrected by this change."
+    ],
+    "reference": {
+      "base_brightness_bins": [
+        {
+          "channel_samples": 13076,
+          "mae_codes": 3.935224839400428,
+          "range": [
+            0,
+            64
+          ],
+          "rms_codes": 4.789153328017995
+        },
+        {
+          "channel_samples": 169214,
+          "mae_codes": 3.159691278499415,
+          "range": [
+            64,
+            128
+          ],
+          "rms_codes": 3.7680356097606627
+        },
+        {
+          "channel_samples": 86898,
+          "mae_codes": 2.7784989297797416,
+          "range": [
+            128,
+            192
+          ],
+          "rms_codes": 3.243130361707259
+        },
+        {
+          "channel_samples": 57776,
+          "mae_codes": 3.0607518692882856,
+          "range": [
+            192,
+            256
+          ],
+          "rms_codes": 3.5654801711317745
+        }
+      ],
+      "mean_absolute_change_codes": 3.071913115817032,
+      "rms_change_codes": 3.6478706664724307,
+      "signed_mean_change_codes": -0.08936457836336723
+    },
+    "reference_png_sha256": {
+      "cosmic_base": "d2618b36a2f3421cacd06c60b6d7ca5c5226fbe91dcd809bd2384fd906ba7d52",
+      "cosmic_grain": "4bc12228be2bb6251b31fbdfe5ebc2a2eb4d3c13f2716066d7e294d0f3634bd7"
+    },
+    "release_status": "NOT_APPROVED",
+    "report_sha256": "fb0ea38cab95f435817c14ac66ce9fc23f4a9e9c3fb9f96fbe543e0cf2b7569c",
+    "run_id": "Stellar-Isolate-1790622394083-275372080",
+    "schema": 1,
+    "scope": "RGB8 scalar statistics only; reference cross untouched; excludes visible red overlay plus 3 pixels",
+    "unoccluded_pixels": 108988
+  },
+  "reference_binary_sha256": "b1b55fc6f0795dad45dfd1e79bfd180eb6d881519aade4250bd6416d737a3ea8",
+  "release_status": "NOT_APPROVED",
+  "rules_blob": "a1760fde8763f789b50b91c20407938b4fcaea4a",
+  "schema": 1,
+  "stage": "0.9.8 grain correction (local source; no native Mac candidate)",
+  "tests": {
+    "ae_v098": {
+      "status": "NOT RUN"
+    },
+    "baseline_strict": {
+      "passed": 8,
+      "status": "PASS",
+      "total": 8
+    },
+    "build_identity_fixtures": {
+      "passed": 10,
+      "status": "PASS",
+      "total": 10
+    },
+    "core_asan_ubsan": {
+      "passed": 9,
+      "status": "PASS",
+      "total": 9
+    },
+    "core_strict": {
+      "passed": 9,
+      "status": "PASS",
+      "total": 9
+    },
+    "core_tsan": {
+      "passed": 9,
+      "status": "PASS",
+      "total": 9
+    },
+    "cpu_bridge_concurrency": {
+      "max_err": 0,
+      "status": "PASS"
+    },
+    "cpu_bridge_formats_hdr": {
+      "peak": 2,
+      "status": "PASS"
+    },
+    "cpu_bridge_parity": {
+      "max_err": 0,
+      "status": "PASS"
+    },
+    "github_publication": {
+      "reason": "Current connector exposes reads only; no create/update/push action discovered.",
+      "status": "BLOCKED"
+    },
+    "gpu_v098": {
+      "status": "NOT RUN"
+    },
+    "mac_rust_and_packaging": {
+      "reason": "Linux environment, no Mac toolchain; no current GitHub write/dispatch actions available",
+      "status": "BLOCKED"
+    },
+    "new_grain_test_after": {
+      "absolute_tolerance": 5e-06,
+      "assertions": 1331762,
+      "failed_assertions": 0,
+      "status": "PASS"
+    },
+    "new_grain_test_on_baseline": {
+      "assertions": 1331762,
+      "expected_for_red_test": true,
+      "failed_assertions": 593077,
+      "status": "FAIL"
+    },
+    "static_metal_grain_placement": {
+      "execution": "NOT RUN",
+      "negative_mutations_rejected": 3,
+      "status": "PASS"
+    }
+  },
+  "upstream_base_commit": "046d39fe05d611f547f61ed49fcbe202872fd2fd",
+  "upstream_base_tree": "26b9edd668e644edf3b6c819e69094b7a5856f4e"
+}

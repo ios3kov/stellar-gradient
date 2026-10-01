@@ -1,6 +1,7 @@
 use pipl::*;
 use std::env;
 use std::path::PathBuf;
+use std::process::Command;
 
 const PF_PLUG_IN_VERSION: u16 = 13;
 const PF_PLUG_IN_SUBVERS: u16 = 29;
@@ -35,6 +36,30 @@ fn main() {
     let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let project = root.parent().expect("sdkless must live in project root");
 
+    // OUT_DIR is generated build data; canonical source files stay unchanged.
+    // The existing Mac build toolchain already requires Python 3.
+    let version = env::var("CARGO_PKG_VERSION").expect("Cargo package version");
+    let target = env::var("TARGET").expect("Cargo target");
+    let out_dir = env::var("OUT_DIR").expect("Cargo output directory");
+    let identity = Command::new("python3")
+        .arg(project.join("tools/build_identity.py"))
+        .arg("--crate").arg(&root)
+        .arg("--version").arg(&version)
+        .arg("--target").arg(&target)
+        .arg("--out").arg(&out_dir)
+        .output().expect("Python 3 is required for build identity");
+    assert!(identity.status.success(), "{}", String::from_utf8_lossy(&identity.stderr));
+    print!("{}", String::from_utf8(identity.stdout).expect("UTF-8 build identity"));
+    for key in ["SG_REQUIRE_CLEAN_BUILD", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"] {
+        println!("cargo:rerun-if-env-changed={key}");
+    }
+    // A deliberately nonexistent path forces provenance to be re-evaluated on
+    // incremental builds too: a changed Git HEAD must never retain an old ID.
+    println!("cargo:rerun-if-changed={}/stellar-identity-always-check", out_dir);
+    println!("cargo:rerun-if-changed=../tools/build_identity.py");
+    println!("cargo:rerun-if-changed=Cargo.lock");
+
+
     let mut native = cc::Build::new();
     native.cpp(true)
         .std("c++17")
@@ -63,6 +88,7 @@ fn main() {
         "bridge/StellarBridge.h",
         "bridge/StellarBridge.cpp",
         "bridge/MetalBridge.mm",
+        "bridge/MetalValidation.hpp",
         "../src/core/Params.h",
         "../src/core/Sanitize.h",
         "../src/core/RenderPlan.h",
@@ -87,7 +113,12 @@ fn main() {
         Property::CodeMacARM64("EffectMain"),
         Property::AE_PiPL_Version { major: 2, minor: 0 },
         Property::AE_Effect_Spec_Version { major: PF_PLUG_IN_VERSION, minor: PF_PLUG_IN_SUBVERS },
-        Property::AE_Effect_Version { version: 0, subversion: 8, bugversion: 8, stage: Stage::Beta, build: 16 },
+        Property::AE_Effect_Version {
+            version: env::var("CARGO_PKG_VERSION_MAJOR").unwrap().parse().unwrap(),
+            subversion: env::var("CARGO_PKG_VERSION_MINOR").unwrap().parse().unwrap(),
+            bugversion: env::var("CARGO_PKG_VERSION_PATCH").unwrap().parse().unwrap(),
+            stage: Stage::Beta, build: 1,
+        },
         Property::AE_Effect_Info_Flags(0),
         Property::AE_Effect_Global_OutFlags(
             OutFlags::DeepColorAware | OutFlags::NonParamVary

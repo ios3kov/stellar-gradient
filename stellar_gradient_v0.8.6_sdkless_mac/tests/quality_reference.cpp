@@ -95,6 +95,7 @@ int main() {
     base.grain_amount = 0.0f;
     base.diffusion_blur_px = 0.0f;
     base.turbulence_amount = 0.0f;
+    base.turbulence_softness = 0.0f;
     base.bulge = 0.0f;
     base.angle_deg = 37.0f;
     base.cycles = 2.35f;
@@ -126,11 +127,14 @@ int main() {
     diffusion.diffusion_focus_px = 21.0f;
     diffusion.diffusion_feather_px = 56.0f;
 
-    // Baselines are generated from the audited CPU F32 reference renderer.
-    // Update only when an intentional visual change has been reviewed.
-    const Signature expected_base{{0.204531780142,0.111062071743,0.183825664775,0.363154532137},{0.991368830204f,0.680644214153f,0.960009276867f,1.0f},0.650493346755};
-    const Signature expected_heavy{{0.224864763109,0.119129548097,0.260343978208,0.389058099858},{1.1093994379f,0.781969428062f,1.05849254131f,1.0f},0.754382439322};
-    const Signature expected_diffusion{{0.234482478382,0.124349958217,0.271920968823,0.406525578987},{1.09005272388f,0.781263768673f,1.05771040916f,1.0f},0.686040455902};
+    // v0.10.0: intentional Turbulence + Softness correction, reviewed against the
+    // retained Cosmic feature-isolation captures. The grain-free base remains
+    // unchanged; heavy/diffusion change because they exercise both corrected
+    // stages. Tolerances are intentionally unchanged. Prior signatures remain
+    // in Git history and the stage evidence record.
+    const Signature expected_base{{0.197606848364,0.0984812350607,0.229838477415,0.363154532137},{0.991337895393f,0.680429458618f,0.960008561611f,1.0f},0.68247069041};
+    const Signature expected_heavy{{0.25538847695,0.130860504197,0.226931790622,0.391903346455},{0.810612142086f,0.415874838829f,0.642850697041f,1.0f},0.678669994316};
+    const Signature expected_diffusion{{0.266258029926,0.136434316215,0.237124996396,0.40910880703},{0.805035948753f,0.404568225145f,0.642850697041f,1.0f},0.629890226806};
 
     const Signature got_base = render_case(base, 7);
     const Signature got_heavy = render_case(heavy, 19);

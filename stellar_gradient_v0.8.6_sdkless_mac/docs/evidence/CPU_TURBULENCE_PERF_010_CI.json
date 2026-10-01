@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "date": "2026-10-01",
+  "scope": "Stellar Gradient v0.10.0 CPU Turbulence Level-1 performance validation",
+  "governing_rules": {
+    "repository": "ios3kov/AE-Development-Rules",
+    "commit": "09f04464e932dd02a3657db34e5e70f097d69b9d",
+    "ai_entrypoint_blob": "6749afebd8b4c52696e5d509b2f6ea9e188fc198",
+    "delivery_gate": "Validation"
+  },
+  "baseline": {
+    "commit": "16cfa398e7b0f1dd2701e3c8c40ba42e8bb42857",
+    "reason": "First correct v0.10.0 Turbulence + Softness behavior; v0.9.9 is not a valid performance baseline because behavior differs."
+  },
+  "optimization": {
+    "native_commit": "9f3e73bc92534941db1106f521786d8c3c792347",
+    "change": "Precompute regular-grid Perlin X/Y axis lattice, fractional coordinate and fade state for CPU Turbulence.",
+    "metal_changed": false,
+    "output_guard": "Direct cached renderer versus uncached cosmic_fbm4 regression."
+  },
+  "exact_code_validation": {
+    "mac_ci_run": 36911997718,
+    "status": "PASS",
+    "jobs_passed": 8,
+    "jobs_total": 8,
+    "core_strict_tests": "11/11 PASS",
+    "asan_ubsan": "PASS",
+    "tsan": "PASS",
+    "artifact_id": 11187002476,
+    "artifact_name": "StellarGradient-mac-arm64",
+    "artifact_digest_sha256": "28ec6077bd5ed0019679d7a7d68e56083e2f4a0e4241020fbf60f2bafc8528b1",
+    "plugin_zip_sha256": "4195641fe2b2a79e528cd1a80b3a10f33b278b3789fface7d71a80370a0e1c30",
+    "build_id": "sg-0.10.0-9f3e73bc9253-clean-bc5efe6bf48a-aarch64-apple-darwin-36911997718.1",
+    "source_sha256": "bc5efe6bf48a18cd692ce5e5022fee84cf953ccc3821a35e18b1d3e33985cb35",
+    "release_status": "NOT_APPROVED_AE_GATES_PENDING"
+  },
+  "performance_harness": {
+    "initial_commit": "f488138bd58af9d66f8edaa9c8c6c6a5bda0012f",
+    "jitter_guard_commit": "cc21f1e2d85de94918f33d20ab3e1359c220341a",
+    "paired_sampling_commit": "59448db5a1f004cab9cc443106585913d4c27200",
+    "runner": "macos-15 arm64",
+    "compiler": "AppleClang 17.0.0",
+    "samples_per_build": 11,
+    "order": "alternating baseline/current; result uses median of paired ratios/deltas"
+  },
+  "measurements": [
+    {
+      "run_id": 36912426549,
+      "attempt": 1,
+      "ratio_1280_base": 1.054,
+      "ratio_1280_procedural": 0.969,
+      "delta_ms_1280_procedural": -3.311,
+      "control_normalized_1280_procedural": 0.9193548387096774,
+      "status": "PASS"
+    },
+    {
+      "run_id": 36912434745,
+      "attempt": 1,
+      "ratio_1280_base": 0.958,
+      "ratio_1280_procedural": 0.915,
+      "delta_ms_1280_procedural": -14.318,
+      "control_normalized_1280_procedural": 0.9551148225469729,
+      "status": "PASS"
+    },
+    {
+      "run_id": 36912426549,
+      "attempt": 2,
+      "ratio_1280_base": 0.89,
+      "ratio_1280_procedural": 0.837,
+      "delta_ms_1280_procedural": -19.61,
+      "control_normalized_1280_procedural": 0.9404494382022471,
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "direction_1280_procedural": "3/3 paired measurements faster",
+    "median_raw_paired_ratio_1280_procedural": 0.915,
+    "median_control_normalized_ratio_1280_procedural": 0.9404494382022472,
+    "interpretation": "Repeatable Level-1 CPU improvement direction with material hosted-runner variance; not a real-AE, GPU, or production performance claim."
+  },
+  "remaining_level_2": [
+    "exact artifact load and runtime Build ID in After Effects",
+    "executed CPU/GPU numerical parity",
+    "8/16/32 bpc and alpha/HDR/color-management",
+    "restart, Undo/Redo, save/reopen/migration",
+    "MFR, render queue and applicable noninteractive paths",
+    "real-host CPU/Metal profiling"
+  ],
+  "current_standard_after_migration": {
+    "repository": "ios3kov/AE-Development-Rules",
+    "version": "4.0.0",
+    "commit": "58d14aa12375757f4e52396d951f1557ae4f453c",
+    "ai_entrypoint_blob": "29cb44eb7f2a4e0f7c120a97ae434dbb7e58174e",
+    "reference_audit_status": "PARTIAL",
+    "reference_specification": "../REFERENCE_SPECIFICATION_COSMIC_V4.md",
+    "note": "The governing_rules field above records the standard current when the performance evidence was first captured; it is intentionally preserved as historical provenance."
+  }
+}

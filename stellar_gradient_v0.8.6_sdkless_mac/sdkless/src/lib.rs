@@ -258,8 +258,9 @@ impl AdobePluginGlobal for Plugin {
         percent_slider!(Params::Contrast,"Contrast",0.0,400.0,0.0,200.0,100.0,1,14);
         percent_slider!(Params::Bulge,"Bulge",-200.0,200.0,-100.0,100.0,60.0,1,15);
         percent_slider!(Params::Rounding,"Rounding",0.0,100.0,0.0,100.0,100.0,1,16);
+        add_group(params,Params::TurbTopic,"Turbulence",18,true,true)?; slider!(Params::TurbAmount,"Amount",0.0,500.0,0.0,200.0,40.0,1,19); slider!(Params::TurbSizeX,"Size X",0.1,50.0,0.1,10.0,3.0,2,20); slider!(Params::TurbSizeY,"Size Y",0.1,50.0,0.1,10.0,3.0,2,21); add_id(params,Params::TurbEvolution,"Evolution",ae::AngleDef::setup(|x|{x.set_default(0.0);x.set_value(x.default());}),22)?; add_group(params,Params::TurbEnd,"",24,false,false)?;
+        slider!(Params::TurbSoftness,"Softness",0.0,1000.0,0.0,200.0,40.0,1,23);
         add_group(params,Params::DepthEnd,"",17,false,false)?;
-        add_group(params,Params::TurbTopic,"Turbulence",18,true,true)?; slider!(Params::TurbAmount,"Amount",0.0,500.0,0.0,200.0,40.0,1,19); slider!(Params::TurbSizeX,"Size X",0.1,50.0,0.1,10.0,3.0,2,20); slider!(Params::TurbSizeY,"Size Y",0.1,50.0,0.1,10.0,3.0,2,21); add_id(params,Params::TurbEvolution,"Evolution",ae::AngleDef::setup(|x|{x.set_default(0.0);x.set_value(x.default());}),22)?; slider!(Params::TurbSoftness,"Softness",0.0,1000.0,0.0,200.0,40.0,1,23); add_group(params,Params::TurbEnd,"",24,false,false)?;
         add_group(params,Params::LookTopic,"Look",25,true,true)?; add_group(params,Params::GlowTopic,"Glow",26,true,true)?; slider!(Params::GlowRadius,"Radius",0.0,2000.0,0.0,600.0,194.0,1,27); percent_slider!(Params::GlowFalloff,"Falloff",0.0,100.0,0.0,100.0,50.0,1,28); percent_slider!(Params::GlowThreshold,"Threshold",0.0,100.0,0.0,100.0,0.0,1,29); percent_slider!(Params::GlowIntensity,"Intensity",0.0,400.0,0.0,200.0,160.0,1,30); percent_slider!(Params::GlowSoftClip,"Soft Clip",0.0,100.0,0.0,100.0,0.0,1,31); add_group(params,Params::GlowEnd,"",32,false,false)?;
         add_group(params,Params::GrainTopic,"Grain",33,true,true)?; percent_slider!(Params::GrainAmount,"Amount",0.0,200.0,0.0,200.0,20.0,1,34); slider!(Params::GrainSize,"Size",0.3,5.0,0.3,3.0,1.0,2,35); percent_slider!(Params::GrainColor,"Color",0.0,100.0,0.0,100.0,100.0,1,36); add_id(params,Params::GrainAnimate,"Animate",ae::CheckBoxDef::setup(|x|{x.set_default(true);x.set_value(true);}),37)?; add_group(params,Params::GrainEnd,"",38,false,false)?;
         add_group(params,Params::DiffTopic,"Optical Diffusion",39,true,true)?;
@@ -276,7 +277,7 @@ impl AdobePluginGlobal for Plugin {
 
     fn handle_command(&self, cmd: ae::Command, in_data: ae::InData, mut out_data: ae::OutData, params: &mut ae::Parameters<Params>) -> Result<(), ae::Error> {
         match cmd {
-            ae::Command::About => out_data.set_return_msg("Stellar Gradient v0.9.5\rAE init-safe params + exact Cosmic Depth + Metal"),
+            ae::Command::About => out_data.set_return_msg(concat!("Stellar Gradient v", env!("CARGO_PKG_VERSION"), "\rBuild ", env!("SG_BUILD_ID"))),
             ae::Command::UserChangedParam { param_index } => {
                 match params.type_at(param_index) {
                     Params::Presets => {
@@ -399,6 +400,31 @@ impl AdobePluginGlobal for Plugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn palette_choices_and_custom_are_well_defined() {
+        let mut all = Vec::new();
+        for which in 1..=11 {
+            let palette = palette_colors(which).expect("built-in palette");
+            assert!(!all.contains(&palette), "duplicate built-in palette");
+            all.push(palette);
+        }
+        for which in [-1, 0, 12, 13, 14, i32::MAX] {
+            assert!(palette_colors(which).is_none());
+        }
+        assert_eq!(palette_colors(5).unwrap(), [
+            [40, 13, 140], [55, 17, 191], [24, 14, 89], [7, 12, 38], [242, 75, 75],
+        ]);
+    }
+
+    #[test]
+    fn compiled_build_identity_is_explicit_and_fits_about() {
+        let id = env!("SG_BUILD_ID");
+        assert!(id.starts_with(&format!("sg-{}-", env!("CARGO_PKG_VERSION"))));
+        assert!(id.contains(env!("SG_BUILD_TARGET")));
+        assert!(matches!(env!("SG_SOURCE_STATE"), "clean" | "dirty" | "derived" | "unknown"));
+        assert!(id.len() + env!("CARGO_PKG_VERSION").len() + 30 < 256);
+    }
 
     #[test]
     fn ffi_layout_matches_cpp_contract() {

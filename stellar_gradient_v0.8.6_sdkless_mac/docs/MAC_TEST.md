@@ -1,38 +1,44 @@
-# macOS first test — SDK-less host
+# macOS Validation — Stellar Gradient v0.10.0
 
-## 1. Requirements
+Current gate: real After Effects **Level-2 Validation** of the unchanged artifact.
 
-- After Effects 2025 or newer
-- Apple Silicon Mac
-- Xcode / Xcode command-line tools
-- Internet connection on the first build only if Rust/Cargo or crates are not already cached
+## Exact artifact
 
-**Adobe After Effects SDK is not required.**
+- native commit: `9f3e73bc92534941db1106f521786d8c3c792347`
+- Mac CI: `36911997718` — 8/8 PASS
+- Actions artifact: **11187002476**
+- Build ID: `sg-0.10.0-9f3e73bc9253-clean-bc5efe6bf48a-aarch64-apple-darwin-36911997718.1`
+- plugin ZIP SHA-256: `4195641fe2b2a79e528cd1a80b3a10f33b278b3789fface7d71a80370a0e1c30`
 
-## 2. Build + install
+Do not use `FIRST_MAC_BUILD.command` for this gate: rebuilding would create a
+different candidate.
 
-Double-click `FIRST_MAC_BUILD.command`.
+## 1. Identity
 
-The script runs preflight/tests, builds, signs, installs and launches After Effects automatically.
+Run `diagnostics/Stellar_Mac_Check.command`.
+The intended bundle must report `TARGET ON-DISK IDENTITY: MATCH`.
 
-The effect should appear at:
+Then open Stellar Gradient's About message in After Effects and record the loaded
+Build ID. It must exactly match the target above. Multiple/ambiguous Stellar
+bundles or a wrong Build ID are **BLOCKED**, not PASS.
 
-**Effect > Stellar > Stellar Gradient**
+## 2. Automated host smoke
 
-## 3. Minimum test
+Run `diagnostics/Stellar_AE_Diagnostics_v1_3.jsx` via
+**File > Scripts > Run Script File**.
 
-1. New comp, 1920x1080, 30 fps.
-2. Add a text or shape layer with transparency around it.
-3. Apply Stellar Gradient.
-4. Confirm the gradient is clipped to the alpha silhouette.
-5. Raise Glow Radius/Intensity and verify glow extends outside the original silhouette without a hard crop.
-6. Animate Phase from 0 to 360 and verify the loop is seamless.
-7. Test **Render Engine > Auto**, **GPU**, and **CPU**.
-8. Switch Project Settings > Video Rendering between Metal and Software Only.
-9. Repeat in 8, 16 and 32 bpc.
-10. Zoom/pan/scrub so SmartFX requests different regions; no seams in Turbulence, Grain, Glow or Diffusion.
-11. Compare Auto/GPU/CPU visually in 32 bpc; no visible quality loss is acceptable.
+It requests CPU at 8/16/32 bpc and Auto at 32 bpc. It proves host completion and
+cleanup only; it does not prove numerical pixels or actual GPU dispatch.
 
-## 4. If build or AE loading fails
+## 3. Manual Level-2 matrix
 
-Send `mac_first_build_report.zip` created beside the project. Do not edit the source first; the exact first failure is the useful diagnostic.
+On the same exact artifact:
+- Render Engine GPU with Metal, then CPU; compare numerically where evidence permits.
+- Exercise 8/16/32 bpc, transparent pixels, alpha/HDR/extended-range and color management.
+- Check Base/Depth/Turbulence Size 3 & 6/Softness/Grain/Glow/Diffusion.
+- Scrub and render multiple frames with MFR enabled.
+- Check Undo/Redo, duplicate/copy, save/reopen, AE restart and Render Queue.
+- Only after correctness passes, record comparable real-host CPU/Metal timings.
+
+Any crash, host error, stale identity, seam or reproducible parity difference
+blocks acceptance. No merge/release follows from smoke alone.

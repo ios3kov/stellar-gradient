@@ -1,0 +1,30 @@
+name: AE deferred diagnostic harness
+on:
+  push:
+    branches: [fix/stellar-release-gate]
+    paths: [diagnostics/Stellar_AE_Diagnostics_v1_1.jsx, diagnostics/test_runner_v1_1.cjs, diagnostics/Stellar_AE_Diagnostics_v1_2.jsx, diagnostics/test_runner_v1_2.cjs, diagnostics/Stellar_AE_Diagnostics_v1_3.jsx, diagnostics/test_runner_v1_3.cjs, diagnostics/validation_target_v010.json, diagnostics/test_target_identity.py, diagnostics/Stellar_Cosmic_Compare.jsx, .github/workflows/ae-render-sequence.yml]
+  pull_request:
+    branches: [main]
+    paths: [diagnostics/Stellar_AE_Diagnostics_v1_1.jsx, diagnostics/test_runner_v1_1.cjs, diagnostics/Stellar_AE_Diagnostics_v1_2.jsx, diagnostics/test_runner_v1_2.cjs, diagnostics/Stellar_AE_Diagnostics_v1_3.jsx, diagnostics/test_runner_v1_3.cjs, diagnostics/validation_target_v010.json, diagnostics/test_target_identity.py, diagnostics/Stellar_Cosmic_Compare.jsx, .github/workflows/ae-render-sequence.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ae-render-sequence-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deferred sequence and failure safety (NOT real AE)
+        run: |
+          node diagnostics/test_runner_v1_1.cjs
+          node diagnostics/test_runner_v1_2.cjs
+          node diagnostics/test_runner_v1_3.cjs
+          python3 diagnostics/test_target_identity.py
+      - name: Record diagnostic identity
+        run: sha256sum diagnostics/Stellar_AE_Diagnostics_v1_1.jsx diagnostics/Stellar_AE_Diagnostics_v1_2.jsx diagnostics/Stellar_AE_Diagnostics_v1_3.jsx diagnostics/validation_target_v010.json

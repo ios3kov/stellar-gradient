@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "version": "0.9.9",
+  "commit": "a147aafbf2b461ebe1890dd8b5a48e9a09976ebd",
+  "source_tree": "b9b0bd4be2692d8429aae18be09c828c9ab7b4ad",
+  "run_id": 36486084430,
+  "artifact_id": 10999241777,
+  "artifact_sha256": "05f387bf08d2806d39fa30aa9696b3e419ebbd8b2b974b66eb056e25b8cfb599",
+  "plugin_zip_sha256": "da9039f3a4fc035c48623e10dab30ba43f5b1c77ccb3ef303af8ae933816d3d4",
+  "build_id": "sg-0.9.9-a147aafbf2b4-clean-241c9621fb5a-aarch64-apple-darwin-36486084430.1",
+  "payload_files": 6,
+  "source_hashes_checked": 29,
+  "release_status": "NOT_APPROVED",
+  "actual_ae_gpu_execution": "NOT_RUN",
+  "date": "2026-09-28",
+  "rules_blob": "a1760fde8763f789b50b91c20407938b4fcaea4a",
+  "baseline_commit": "d7e035ddf8751deb1c43c54d1cff050036890d64",
+  "ci_jobs_passed": 8,
+  "local_core": {
+    "strict": "10/10 PASS",
+    "asan_ubsan": "10/10 PASS",
+    "tsan": "10/10 PASS"
+  },
+  "scalar_validation_checks": 681372,
+  "native_entry_checks": {
+    "strict": 102,
+    "asan_ubsan": 102,
+    "failures": 0,
+    "scope": "Real sg_metal_render entry; Objective-C buffer/queue doubles; no GPU or AE"
+  },
+  "baseline_reproducer": {
+    "rowbytes": 36,
+    "width": 2,
+    "result": -3,
+    "command_buffer_calls": 1,
+    "test_exit": 1
+  },
+  "fixed_reproducer": {
+    "rowbytes": 36,
+    "width": 2,
+    "result": -1,
+    "command_buffer_calls": 0,
+    "test_exit": 0
+  },
+  "identity_tests": "10/10 PASS",
+  "source_freeze_files": 59,
+  "source_artifact": {
+    "id": 10998572690,
+    "files": 143,
+    "archive_sha256": "1da822281e5c2d61833515b3f6ce3e316a424e9af80040533e8b625305ea599e",
+    "tar_sha256": "90291c40a81e48339317c25bfff177087e0d80dd55d250cbc7febaee1af23b71",
+    "verification": "Matches tested local files plus exact two upstream documentation blobs; expected Git tree matched before push"
+  },
+  "native_log_artifact": {
+    "id": 10999651464,
+    "log_files": 10,
+    "sha256": "6ad8144eb7030a5079f993a090a2a9788509bde677478fe99f6dbec396f20bf4"
+  },
+  "toolchains": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+    "macos_sdk": "15.5"
+  },
+  "metal": {
+    "compiler": "Apple metal 32023.620",
+    "source_sha256": "828e90210a1c1693987fa74a6cd59973df802a77b7d7baf2e5cf4f32896b9680",
+    "metallib_sha256": "7625442fb9c92338f409140b3303d7860154f907b7666528198e14a3a869b27f",
+    "compile_and_negative_control": "PASS",
+    "dispatch": "NOT_RUN"
+  },
+  "unchanged": [
+    "CPU renderer",
+    "Metal shader",
+    "parameter IDs/defaults",
+    "C ABI layout",
+    "dependency versions/checksums",
+    "golden images and tolerances"
+  ],
+  "limitations": [
+    "No actual v0.9.9 AE/GPU run or runtime Build ID observation",
+    "No Turbulence, Softness, Depth/ROI, Glow/Diffusion or preset-parity fix",
+    "Device policy, aliasing, arbitrary invalid object pointers and CPU validation outside this change",
+    "No performance improvement or universal buffer-safety claim; no new user installation"
+  ]
+}
