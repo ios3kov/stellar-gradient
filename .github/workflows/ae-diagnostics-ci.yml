@@ -20,5 +20,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Negative and positive safety checks (not real AE)
+      - name: Retained diagnostic safety checks (not real AE)
         run: node diagnostics/test_runner.cjs
+      - name: Active v0.10 Level-2 harness contract (not real AE)
+        run: |
+          set -euo pipefail
+          node diagnostics/test_runner_v1_3.cjs
+          python3 diagnostics/test_target_identity.py
