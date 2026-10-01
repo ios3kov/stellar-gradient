@@ -20,7 +20,9 @@ sg_run() {
         /usr/libexec/PlistBuddy)
             case "$3" in
                 'Print :CFBundleExecutable') printf '%s\n' "$MOCK_EXEC" ;;
-                'Print :StellarBuildID') echo fixture-build-not-real ;;
+                'Print :CFBundleShortVersionString') echo "$MOCK_VERSION" ;;
+                'Print :StellarGitCommit') echo "$MOCK_COMMIT" ;;
+                'Print :StellarBuildID') echo "$MOCK_BUILD_ID" ;;
                 *) echo fixture-plist-value ;;
             esac ;;
         /usr/bin/codesign)
@@ -54,6 +56,8 @@ class CollectorTests(unittest.TestCase):
         (self.home/'Library/Test').mkdir(parents=True)
         self.env = dict(os.environ, HOME=str(self.home), CHECK_SCRIPT=str(SCRIPT),
                         TRACE=str(self.home/'trace'), MOCK_OS='Darwin', MOCK_EXEC='StellarGradient',
+                        MOCK_VERSION='0.10.0', MOCK_COMMIT='9f3e73bc92534941db1106f521786d8c3c792347',
+                        MOCK_BUILD_ID='sg-0.10.0-9f3e73bc9253-clean-bc5efe6bf48a-aarch64-apple-darwin-36911997718.1',
                         SIGN_RC='0', QUARANTINE='no', RUNNING='no', LSOF_RC='0')
 
     def bundle(self, name='StellarGradient.plugin', location='Library/Test', marker=b'fixture only'):
@@ -94,6 +98,19 @@ class CollectorTests(unittest.TestCase):
         self.assertIn('named_bundles=1', text); self.assertIn('BINARY SHA256 exit=0', text)
         self.assertNotIn('Cosmic', (self.home/'trace').read_text())
         self.assertEqual(before, self.unchanged())
+
+    def test_exact_v010_target_is_classified_as_static_match(self):
+        self.bundle()
+        _, text, _ = self.run_check()
+        self.assertIn('TARGET ON-DISK IDENTITY: MATCH', text)
+        self.assertIn('9f3e73bc92534941db1106f521786d8c3c792347', text)
+        self.assertNotIn('release_status=PASS', text)
+
+    def test_stale_or_other_bundle_is_explicit_mismatch(self):
+        self.bundle()
+        _, text, _ = self.run_check(MOCK_COMMIT='deec78835801c5bf6f1aa44c772b508e43697b11')
+        self.assertIn('TARGET ON-DISK IDENTITY: MISMATCH', text)
+        self.assertIn('runtime Build ID', text)
 
     def test_duplicate_bundles_never_replaced(self):
         self.bundle(); self.bundle(location='Library/Test/old')

@@ -1,7 +1,10 @@
 #!/bin/bash
-# Stellar install check 1.0. Read-only inspection; not an installer or AE test.
+# Stellar install check 1.1. Read-only inspection; not an installer or AE test.
 # Requires only macOS built-in commands. No sudo, downloads or preference edits.
 # Can be sourced by the fixture tests; normal execution always uses the real OS.
+SG_TARGET_VERSION='0.10.0'
+SG_TARGET_COMMIT='9f3e73bc92534941db1106f521786d8c3c792347'
+SG_TARGET_BUILD_ID='sg-0.10.0-9f3e73bc9253-clean-bc5efe6bf48a-aarch64-apple-darwin-36911997718.1'
 
 sg_run() { "$@"; }
 sg_line() {
@@ -55,7 +58,7 @@ sg_discover() {
     done < <(sg_run /bin/ps -U "$(sg_run /usr/bin/id -u)" -o pid=,comm= 2>/dev/null)
 }
 sg_bundle() {
-    local bundle="$1" origin="$2" disabled="$3" plist executable binary attrs result rc
+    local bundle="$1" origin="$2" disabled="$3" plist executable binary attrs result rc actual_version actual_commit actual_build
     if (( SG_BUNDLES >= 32 )); then SG_PARTIAL=1; return; fi
     SG_BUNDLES=$((SG_BUNDLES + 1))
     [[ "$origin" == installed-location ]] && SG_INSTALLED=$((SG_INSTALLED + 1))
@@ -74,6 +77,14 @@ sg_bundle() {
     for key in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion StellarBuildID StellarGitCommit; do
         sg_capture "PLIST $key" /usr/libexec/PlistBuddy -c "Print :$key" "$plist" || :
     done
+    actual_version=$(sg_run /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist" 2>/dev/null)
+    actual_commit=$(sg_run /usr/libexec/PlistBuddy -c 'Print :StellarGitCommit' "$plist" 2>/dev/null)
+    actual_build=$(sg_run /usr/libexec/PlistBuddy -c 'Print :StellarBuildID' "$plist" 2>/dev/null)
+    if [[ "$actual_version" == "$SG_TARGET_VERSION" && "$actual_commit" == "$SG_TARGET_COMMIT" && "$actual_build" == "$SG_TARGET_BUILD_ID" ]]; then
+        sg_line 'TARGET ON-DISK IDENTITY: MATCH (static bundle only; loaded runtime still NOT_VERIFIED)'
+    else
+        sg_line "TARGET ON-DISK IDENTITY: MISMATCH expected_version=$SG_TARGET_VERSION actual_version=$actual_version expected_commit=$SG_TARGET_COMMIT actual_commit=$actual_commit expected_build_id=$SG_TARGET_BUILD_ID actual_build_id=$actual_build"
+    fi
     executable=$(sg_run /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$plist" 2>/dev/null)
     case "$executable" in ''|.|..|*/*|*$'\n'*)
         sg_line 'STRUCTURE: invalid executable name; no binary inspected'; SG_PARTIAL=1; return ;;
@@ -140,9 +151,9 @@ sg_walk() {
 }
 sg_report() {
     local root i pid mappings rc arch
-    sg_line 'Stellar Mac Check 1.0; read-only installation inventory, not release approval'
+    sg_line 'Stellar Mac Check 1.1; read-only installation inventory, not release approval'
     sg_line "RUN $(sg_run /bin/date -u +%Y%m%dT%H%M%SZ) ${SG_OUTPUT##*/}"
-    sg_line 'TARGET version=0.9.6 commit=deec78835801c5bf6f1aa44c772b508e43697b11; installed version NOT_ASSUMED'
+    sg_line "TARGET version=$SG_TARGET_VERSION commit=$SG_TARGET_COMMIT build_id=$SG_TARGET_BUILD_ID; installed version NOT_ASSUMED"
     sg_capture 'COLLECTOR SHA256' /usr/bin/shasum -a 256 "${BASH_SOURCE[0]}" || :
     sg_capture 'macOS' /usr/bin/sw_vers -productVersion || :
     sg_capture 'Terminal process architecture (not AE architecture)' /usr/bin/uname -m || :
