@@ -18,8 +18,8 @@
     ];
     var report = {
         schema: 3, runner_version: VERSION, run_id: runID,
-        candidate_commit: "deec78835801c5bf6f1aa44c772b508e43697b11",
-        candidate_build_id: "sg-0.9.6-deec78835801-clean-873ad85d1063-aarch64-apple-darwin-36452443559.1",
+        candidate_commit: "9f3e73bc92534941db1106f521786d8c3c792347",
+        candidate_build_id: "sg-0.10.0-9f3e73bc9253-clean-bc5efe6bf48a-aarch64-apple-darwin-36911997718.1",
         loaded_build_id: "NOT_VERIFIED", release_status: "NOT_APPROVED",
         checks: [], captures: [], cases: [], preflight: [], summary: "IN_PROGRESS",
         comparison_status: "NOT_EVALUATED",
